@@ -3,6 +3,7 @@ package me.animeheaven.android.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -36,10 +38,12 @@ import me.animeheaven.android.ui.theme.LocalAhPalette
 
 val AhHorizontalPadding = 16.dp
 val AhShape4: Shape = RoundedCornerShape(4.dp)
+val AhShape6: Shape = RoundedCornerShape(6.dp)
 val AhShape8: Shape = RoundedCornerShape(8.dp)
 val AhShape10: Shape = RoundedCornerShape(10.dp)
 val AhShape12: Shape = RoundedCornerShape(12.dp)
-val AhShape20: Shape = RoundedCornerShape(20.dp)
+val AhShape16: Shape = RoundedCornerShape(16.dp)
+val AhShape20: Shape = RoundedCornerShape(24.dp)
 
 enum class TopTabDestination(
     val label: String,
@@ -51,6 +55,12 @@ enum class TopTabDestination(
     BOOKMARKS("Bookmarks", AhIcons.Bookmarks)
 }
 
+/**
+ * 2025/2026 Netflix Mobile Top Bar:
+ * - Signature condensed red "A" monogram + "For You" editorial title
+ * - Clean Search, Shuffle, and Settings actions
+ * - Frosted capsule filter pills strip underneath (Seasonal, Surprise Me)
+ */
 @Composable
 fun MobileTopBar(
     seasonLabel: String?,
@@ -62,109 +72,152 @@ fun MobileTopBar(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalAhPalette.current
+    val topBrush = if (palette.isLight) {
+        Brush.verticalGradient(listOf(palette.surface, palette.background))
+    } else {
+        Brush.verticalGradient(listOf(Color(0xEE0B0B0B), Color(0xBB0B0B0B), Color.Transparent))
+    }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(palette.surface)
+            .background(topBrush)
             .statusBarsPadding()
+            .padding(bottom = 8.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = AhHorizontalPadding, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // AnimeHeaven AH Emblem
-            Box(
+            // Netflix-style Red "A" Monogram + "For You"
+            Row(
                 modifier = Modifier
-                    .size(38.dp)
                     .clip(AhShape8)
-                    .background(Color.Black)
-                    .border(1.5.dp, palette.crimson, AhShape8)
-                    .clickable(onClick = onLogoClick),
-                contentAlignment = Alignment.Center
+                    .clickable(onClick = onLogoClick)
+                    .padding(end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "A",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "H",
-                        color = palette.crimson,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
-            }
-
-            if (!seasonLabel.isNullOrBlank()) {
-                Box(
-                    modifier = Modifier
-                        .clip(AhShape20)
-                        .background(palette.surfaceElevated)
-                        .border(1.dp, palette.crimson.copy(alpha = 0.7f), AhShape20)
-                        .clickable(onClick = onSeasonalClick)
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
-                ) {
-                    Text(
-                        text = seasonLabel,
-                        color = palette.textPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = "A",
+                    color = palette.crimson,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-1).sp
+                )
+                Text(
+                    text = "For You",
+                    color = palette.textPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Compact Search Pill
+            // Frosted Search pill (keeps "Search" text accessible for UI tests & thumb ergonomics)
             Row(
                 modifier = Modifier
                     .clip(AhShape20)
-                    .background(palette.surfaceElevated)
-                    .border(1.dp, palette.borderSubtle, AhShape20)
+                    .background(if (palette.isLight) palette.surfaceElevated else Color(0x2BFFFFFF))
+                    .border(
+                        1.dp,
+                        if (palette.isLight) palette.borderSubtle else Color(0x2EFFFFFF),
+                        AhShape20
+                    )
                     .clickable(onClick = onSearchClick)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Search,
                     contentDescription = "Search",
-                    tint = palette.crimson,
+                    tint = palette.textPrimary,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
                     text = "Search",
-                    color = palette.textSecondary,
+                    color = palette.textPrimary,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
-            TopBarIconButton(
-                icon = AhIcons.Shuffle,
-                contentDescription = "Random Anime",
-                onClick = onRandomClick
-            )
             TopBarIconButton(
                 icon = AhIcons.Tune,
                 contentDescription = "Settings & Themes",
                 onClick = onSettingsClick
             )
         }
-        Box(
+
+        // Netflix Mobile Horizontal Glass Category Pills
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(1.dp)
-                .background(palette.borderSubtle)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = AhHorizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (!seasonLabel.isNullOrBlank()) {
+                NetflixFilterPill(
+                    label = seasonLabel,
+                    onClick = onSeasonalClick
+                )
+            }
+            NetflixFilterPill(
+                label = "Surprise Me",
+                icon = AhIcons.Shuffle,
+                onClick = onRandomClick
+            )
+            NetflixFilterPill(
+                label = "1080p Subbed",
+                onClick = onLogoClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun NetflixFilterPill(
+    label: String,
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    val palette = LocalAhPalette.current
+    Row(
+        modifier = Modifier
+            .clip(AhShape20)
+            .background(if (palette.isLight) palette.surfaceElevated else Color(0x1FFFFFFF))
+            .border(
+                width = 1.dp,
+                color = if (palette.isLight) palette.borderSubtle else Color(0x3DFFFFFF),
+                shape = AhShape20
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = palette.textPrimary,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+        Text(
+            text = label,
+            color = palette.textPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -178,10 +231,14 @@ private fun TopBarIconButton(
     val palette = LocalAhPalette.current
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(36.dp)
             .clip(CircleShape)
-            .background(palette.surfaceElevated)
-            .border(1.dp, palette.borderSubtle, CircleShape)
+            .background(if (palette.isLight) palette.surfaceElevated else Color(0x24FFFFFF))
+            .border(
+                1.dp,
+                if (palette.isLight) palette.borderSubtle else Color(0x2EFFFFFF),
+                CircleShape
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -194,6 +251,10 @@ private fun TopBarIconButton(
     }
 }
 
+/**
+ * Authentic Netflix Mobile Bottom Navigation Bar:
+ * Deep matte #121212 chrome with pure white active icon/label and muted gray inactive items.
+ */
 @Composable
 fun MobileBottomBar(
     activeTab: TopTabDestination,
@@ -205,19 +266,19 @@ fun MobileBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(palette.surface)
+            .background(if (palette.isLight) palette.surface else Color(0xF5121212))
             .navigationBarsPadding()
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(1.dp)
-                .background(palette.borderSubtle)
+                .height(0.8.dp)
+                .background(if (palette.isLight) palette.borderSubtle else Color(0x22FFFFFF))
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -226,30 +287,22 @@ fun MobileBottomBar(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(AhShape10)
+                        .clip(AhShape8)
                         .clickable { onSelectTab(tab) }
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(AhShape20)
-                            .background(if (selected) palette.crimson.copy(alpha = 0.16f) else Color.Transparent)
-                            .padding(horizontal = 14.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = if (selected) palette.crimson else palette.textMuted,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = tab.icon,
+                        contentDescription = tab.label,
+                        tint = if (selected) palette.textPrimary else palette.textMuted,
+                        modifier = Modifier.size(23.dp)
+                    )
                     Text(
                         text = tab.label,
-                        color = if (selected) palette.crimson else palette.textMuted,
-                        fontSize = 11.sp,
+                        color = if (selected) palette.textPrimary else palette.textMuted,
+                        fontSize = 10.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1
                     )

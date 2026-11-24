@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,9 +59,9 @@ import me.animeheaven.android.ui.components.AhHorizontalPadding
 import me.animeheaven.android.ui.components.AhIcons
 import me.animeheaven.android.ui.components.AhLoadingBox
 import me.animeheaven.android.ui.components.AhShape10
-import me.animeheaven.android.ui.components.AhShape12
 import me.animeheaven.android.ui.components.AhShape20
 import me.animeheaven.android.ui.components.AhShape4
+import me.animeheaven.android.ui.components.AhShape6
 import me.animeheaven.android.ui.components.AhShape8
 import me.animeheaven.android.ui.components.SimilarShowCard
 import me.animeheaven.android.ui.components.toGridRows
@@ -96,7 +95,9 @@ fun AnimeDetailScreen(
             }
             val bannerScrim = remember(palette.background) {
                 Brush.verticalGradient(
-                    listOf(Color(0x88000000), Color(0x55000000), palette.background)
+                    0.0f to Color(0x88000000),
+                    0.45f to Color(0x33000000),
+                    1.0f to palette.background
                 )
             }
             val coverForPlayer = detail.bannerUrl ?: detail.posterUrl
@@ -121,30 +122,21 @@ fun AnimeDetailScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 28.dp)
+                    contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
-                    // Hero Banner with Status-Bar Safe Top Actions
+                    // Full-Bleed Netflix Mobile Hero Backdrop
                     item(key = "banner", contentType = "detail_banner") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(210.dp)
+                                .height(240.dp)
                         ) {
-                            if (!detail.bannerUrl.isNullOrBlank()) {
-                                AhCoverImage(
-                                    url = detail.bannerUrl,
-                                    contentDescription = detail.title,
-                                    targetSize = ImageTargetSize.HERO_BANNER,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                AhCoverImage(
-                                    url = detail.posterUrl,
-                                    contentDescription = detail.title,
-                                    targetSize = ImageTargetSize.DETAIL_POSTER,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
+                            AhCoverImage(
+                                url = detail.bannerUrl?.takeIf { it.isNotBlank() } ?: detail.posterUrl,
+                                contentDescription = detail.title,
+                                targetSize = ImageTargetSize.HERO_BANNER,
+                                modifier = Modifier.fillMaxSize()
+                            )
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -161,10 +153,10 @@ fun AnimeDetailScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xBB121212))
-                                        .border(1.dp, Color(0x44FFFFFF), CircleShape)
+                                        .background(Color(0xAA000000))
+                                        .border(1.dp, Color(0x33FFFFFF), CircleShape)
                                         .clickable(onClick = onBack),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -175,94 +167,104 @@ fun AnimeDetailScreen(
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(if (state.isBookmarked) palette.crimson else Color(0xBB121212))
-                                        .border(1.5.dp, palette.crimson, CircleShape)
-                                        .clickable(onClick = viewModel::toggleBookmark),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (state.isBookmarked) AhIcons.Bookmark else AhIcons.BookmarkBorder,
-                                        contentDescription = if (state.isBookmarked) "Bookmarked" else "Bookmark",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
                             }
                         }
                     }
 
-                    // Main Info Card
+                    // Netflix Mobile Editorial Metadata & Stacked Full-Width CTAs
                     item(key = "info_card") {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = AhHorizontalPadding)
-                                .clip(AhShape12)
-                                .background(palette.surface)
-                                .border(1.dp, palette.borderSubtle, AhShape12)
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(horizontal = AhHorizontalPadding),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                verticalAlignment = Alignment.Top
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                AhCoverImage(
-                                    url = detail.posterUrl,
-                                    contentDescription = detail.title,
-                                    targetSize = ImageTargetSize.DETAIL_POSTER,
-                                    modifier = Modifier
-                                        .width(114.dp)
-                                        .aspectRatio(2f / 3f)
-                                        .clip(AhShape8)
-                                        .border(1.dp, palette.borderSubtle, AhShape8)
+                                Text(
+                                    text = "A",
+                                    color = palette.crimson,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black
                                 )
+                                Text(
+                                    text = "S E R I E S",
+                                    color = palette.textSecondary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.2.sp
+                                )
+                            }
 
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                            Text(
+                                text = detail.title,
+                                color = palette.textPrimary,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                lineHeight = 29.sp
+                            )
+
+                            if (detail.japaneseTitle.isNotBlank()) {
+                                Text(
+                                    text = detail.japaneseTitle,
+                                    color = palette.textMuted,
+                                    fontSize = 13.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            // Netflix metadata strip: Score (green), Year, Episodes, HD box
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                if (detail.score.isNotBlank()) {
+                                    Text(
+                                        text = "Score ${detail.score}",
+                                        color = palette.positiveGreen,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (detail.year.isNotBlank()) {
+                                    Text(
+                                        text = detail.year,
+                                        color = palette.textSecondary,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                if (detail.episodesLabel.isNotBlank()) {
+                                    Text(
+                                        text = "${detail.episodesLabel} Episodes",
+                                        color = palette.textSecondary,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .border(1.dp, Color(0x70FFFFFF), AhShape4)
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
                                 ) {
                                     Text(
-                                        text = detail.title,
+                                        text = "HD",
                                         color = palette.textPrimary,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        lineHeight = 25.sp
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    if (detail.japaneseTitle.isNotBlank()) {
-                                        Text(
-                                            text = detail.japaneseTitle,
-                                            color = palette.textMuted,
-                                            fontSize = 13.sp,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        MetaStat("Episodes", detail.episodesLabel)
-                                        MetaStat("Year", detail.year)
-                                        MetaStat("Score", detail.score)
-                                    }
                                 }
                             }
 
-                            // Primary Full-Width Watch/Resume/Next CTA
+                            // Primary Full-Width White Play Button
                             val action = state.primaryAction
                             if (action != null) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(AhShape10)
-                                        .background(palette.crimson)
+                                        .clip(AhShape6)
+                                        .background(Color.White)
                                         .clickable {
                                             onPlayEpisode(
                                                 action.episodeKey,
@@ -278,17 +280,48 @@ fun AnimeDetailScreen(
                                     Icon(
                                         imageVector = Icons.Rounded.PlayArrow,
                                         contentDescription = null,
-                                        tint = Color.White,
+                                        tint = Color.Black,
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = action.buttonLabel,
-                                        color = Color.White,
+                                        color = Color.Black,
                                         fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.ExtraBold
                                     )
                                 }
+                            }
+
+                            // Secondary Full-Width Dark Matte My List Button
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(AhShape6)
+                                    .background(if (state.isBookmarked) palette.crimson else palette.surfaceElevated)
+                                    .border(
+                                        1.dp,
+                                        if (state.isBookmarked) palette.crimson else Color(0x28FFFFFF),
+                                        AhShape6
+                                    )
+                                    .clickable(onClick = viewModel::toggleBookmark)
+                                    .padding(vertical = 11.dp, horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (state.isBookmarked) AhIcons.Bookmark else AhIcons.BookmarkBorder,
+                                    contentDescription = if (state.isBookmarked) "In My List" else "My List",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (state.isBookmarked) "In My List" else "Add to My List",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
 
                             if (detail.synopsis.isNotBlank()) {
@@ -297,7 +330,7 @@ fun AnimeDetailScreen(
                                         .fillMaxWidth()
                                         .clip(AhShape8)
                                         .clickable { synopsisExpanded = !synopsisExpanded }
-                                        .padding(vertical = 2.dp),
+                                        .padding(vertical = 4.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
@@ -314,14 +347,14 @@ fun AnimeDetailScreen(
                                     ) {
                                         Text(
                                             text = if (synopsisExpanded) "Show less" else "Read more",
-                                            color = palette.crimson,
+                                            color = palette.textPrimary,
                                             fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Icon(
                                             imageVector = if (synopsisExpanded) AhIcons.ExpandLess else AhIcons.ExpandMore,
                                             contentDescription = null,
-                                            tint = palette.crimson,
+                                            tint = palette.textPrimary,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -337,14 +370,14 @@ fun AnimeDetailScreen(
                                         Box(
                                             modifier = Modifier
                                                 .clip(AhShape20)
-                                                .background(palette.crimson.copy(alpha = 0.16f))
-                                                .border(1.dp, palette.crimson, AhShape20)
+                                                .background(palette.surfaceElevated)
+                                                .border(1.dp, Color(0x28FFFFFF), AhShape20)
                                                 .clickable { onOpenTag(tag) }
-                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                .padding(horizontal = 11.dp, vertical = 5.dp)
                                         ) {
                                             Text(
                                                 text = tag,
-                                                color = palette.textPrimary,
+                                                color = palette.textSecondary,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
@@ -361,17 +394,17 @@ fun AnimeDetailScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = AhHorizontalPadding)
-                                    .padding(top = 10.dp)
+                                    .padding(top = 12.dp)
                                     .clip(AhShape10)
                                     .background(palette.surface)
-                                    .border(1.dp, palette.crimson.copy(alpha = 0.5f), AhShape10)
+                                    .border(1.dp, Color(0x28FFFFFF), AhShape10)
                                     .padding(vertical = 10.dp, horizontal = 14.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = detail.countdownLabel,
-                                    color = palette.crimson,
-                                    fontSize = 14.sp,
+                                    color = palette.positiveGreen,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -385,30 +418,39 @@ fun AnimeDetailScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = AhHorizontalPadding)
-                                    .padding(top = 16.dp, bottom = 8.dp),
+                                    .padding(top = 20.dp, bottom = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = "Episodes (${orderedEpisodes.size})",
-                                    color = palette.textPrimary,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(48.dp)
+                                            .height(3.dp)
+                                            .clip(CircleShape)
+                                            .background(palette.crimson)
+                                    )
+                                    Text(
+                                        text = "Episodes (${orderedEpisodes.size})",
+                                        color = palette.textPrimary,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
                                 Row(
                                     modifier = Modifier
                                         .clip(AhShape20)
-                                        .background(palette.surface)
-                                        .border(1.dp, palette.crimson, AhShape20)
+                                        .background(palette.surfaceElevated)
+                                        .border(1.dp, Color(0x2EFFFFFF), AhShape20)
                                         .clickable(onClick = viewModel::toggleSortOrder)
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        .padding(horizontal = 11.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Icon(
                                         imageVector = AhIcons.SwapVert,
                                         contentDescription = null,
-                                        tint = palette.crimson,
+                                        tint = palette.textPrimary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
@@ -433,7 +475,7 @@ fun AnimeDetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 row.items.forEach { ep ->
-                                    EpisodeSquareTile(
+                                    EpisodeNetflixTile(
                                         episode = ep,
                                         progress = state.progressMap[ep.key],
                                         onClick = {
@@ -467,7 +509,7 @@ fun AnimeDetailScreen(
                     if (detail.similarShows.isNotEmpty()) {
                         item(key = "similar_shows", contentType = "show_row") {
                             RelatedOrSimilarRow(
-                                title = "Similar Shows",
+                                title = "More Like This",
                                 shows = detail.similarShows,
                                 onOpenAnime = onOpenAnime
                             )
@@ -480,26 +522,7 @@ fun AnimeDetailScreen(
 }
 
 @Composable
-private fun MetaStat(label: String, value: String) {
-    val palette = LocalAhPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = "$label: ",
-            color = palette.textSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Text(
-            text = value,
-            color = palette.crimson,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun EpisodeSquareTile(
+private fun EpisodeNetflixTile(
     episode: EpisodeItem,
     progress: WatchProgressEntity?,
     onClick: () -> Unit,
@@ -516,29 +539,34 @@ private fun EpisodeSquareTile(
     Box(
         modifier = modifier
             .height(78.dp)
-            .clip(AhShape4)
-            .background(if (palette.isLight) Color(0xFFFDFDFF) else Color.Black)
-            .border(1.5.dp, palette.crimson, AhShape4)
+            .clip(AhShape8)
+            .background(if (isWatched) palette.surface else palette.surfaceElevated)
+            .border(
+                1.dp,
+                if (isWatched) palette.positiveGreen.copy(alpha = 0.45f) else Color(0x26FFFFFF),
+                AhShape8
+            )
             .clickable(onClick = onClick)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(4.dp),
+                .padding(5.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = if (isWatched) "Watched" else "Ep",
-                color = palette.textSecondary,
-                fontSize = 10.sp,
+                text = if (isWatched) "WATCHED" else "EP",
+                color = if (isWatched) palette.positiveGreen else palette.textMuted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             Text(
                 text = episode.numberLabel,
-                color = if (isWatched) palette.crimson else palette.textPrimary,
-                fontSize = if (episode.numberLabel.length >= 4) 17.sp else 22.sp,
-                fontWeight = FontWeight.Bold,
+                color = palette.textPrimary,
+                fontSize = if (episode.numberLabel.length >= 4) 17.sp else 21.sp,
+                fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
             Text(
@@ -554,9 +582,9 @@ private fun EpisodeSquareTile(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
+                    .height(3.5.dp)
                     .align(Alignment.BottomCenter)
-                    .background(Color(0x55FFFFFF))
+                    .background(Color(0x44FFFFFF))
             ) {
                 Box(
                     modifier = Modifier
@@ -580,12 +608,12 @@ private fun RelatedOrSimilarRow(
     val rowState = rememberLazyListState(
         prefetchStrategy = remember { LazyListPrefetchStrategy(nestedPrefetchItemCount = 4) }
     )
-    Column(modifier = Modifier.padding(top = 18.dp)) {
+    Column(modifier = Modifier.padding(top = 20.dp)) {
         Text(
             text = title,
             color = palette.textPrimary,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
             modifier = Modifier.padding(horizontal = AhHorizontalPadding, vertical = 8.dp)
         )
         LazyRow(

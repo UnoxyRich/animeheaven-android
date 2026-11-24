@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -66,10 +68,19 @@ import me.animeheaven.android.data.model.FeedViewMode
 import me.animeheaven.android.data.model.RankDirection
 import me.animeheaven.android.ui.theme.LocalAhPalette
 
-private val HERO_BANNER_SCRIM = Brush.verticalGradient(
-    listOf(Color.Transparent, Color(0x99000000), Color(0xEE000000))
+private val HERO_BILLBOARD_SCRIM = Brush.verticalGradient(
+    0.0f to Color.Transparent,
+    0.42f to Color(0x28000000),
+    0.72f to Color(0xCC0B0B0B),
+    1.0f to Color(0xF50B0B0B)
+)
+private val CARD_BOTTOM_SCRIM = Brush.verticalGradient(
+    0.0f to Color.Transparent,
+    0.48f to Color(0x33000000),
+    1.0f to Color(0xE8000000)
 )
 private val RANK_BADGE_SHAPE = RoundedCornerShape(5.dp)
+private val TOP10_BADGE_SHAPE = RoundedCornerShape(bottomStart = 6.dp)
 
 @Immutable
 data class GridRow<T>(
@@ -121,6 +132,11 @@ fun AhCoverImage(
     )
 }
 
+/**
+ * Iconic Netflix Mobile Tall Framed Hero Billboard:
+ * Large rounded featured poster card with centered A SERIES branding, bold title,
+ * dot-separated contextual tags, and dual White Play + Frosted Dark More Info CTAs.
+ */
 @Composable
 fun HeroBannerPager(
     banners: List<BannerItem>,
@@ -145,7 +161,7 @@ fun HeroBannerPager(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         HorizontalPager(
             state = pagerState,
@@ -154,15 +170,15 @@ fun HeroBannerPager(
             beyondViewportPageCount = 1,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(188.dp)
+                .height(352.dp)
         ) { page ->
             val banner = banners[page]
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(AhShape12)
+                    .clip(AhShape16)
                     .background(palette.surface)
-                    .border(1.dp, palette.borderSubtle, AhShape12)
+                    .border(1.dp, Color(0x33FFFFFF), AhShape16)
                     .clickable { onBannerClick(banner.animeId) }
             ) {
                 AhCoverImage(
@@ -173,33 +189,132 @@ fun HeroBannerPager(
                 )
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                        .background(HERO_BANNER_SCRIM)
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .fillMaxSize()
+                        .background(HERO_BILLBOARD_SCRIM)
+                )
+
+                // Top-left featured rank pill
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(12.dp)
+                        .clip(AhShape4)
+                        .background(palette.crimson)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(
+                    Text(
+                        text = "#${page + 1} FEATURED",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.7.sp
+                    )
+                }
+
+                // Bottom centered Netflix editorial stack + dual CTA buttons
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "A",
+                            color = palette.crimson,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = "S E R I E S",
+                            color = Color(0xFFDCDCDC),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.2.sp
+                        )
+                    }
+
+                    Text(
+                        text = banner.title,
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = "Trending Now  •  Subbed Anime  •  HD",
+                        color = Color(0xFFD4D4D4),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // Signature Netflix Mobile Dual Buttons: White Play + Translucent Dark Info
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
                             modifier = Modifier
-                                .clip(AhShape4)
-                                .background(palette.crimson)
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                .weight(1f)
+                                .clip(AhShape6)
+                                .background(Color.White)
+                                .clickable { onBannerClick(banner.animeId) }
+                                .padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "FEATURED",
-                                color = Color.White,
-                                fontSize = 10.sp,
+                                text = "Play",
+                                color = Color.Black,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
-                        Text(
-                            text = banner.title,
-                            color = Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(AhShape6)
+                                .background(Color(0xB8303030))
+                                .border(1.dp, Color(0x2EFFFFFF), AhShape6)
+                                .clickable { onBannerClick(banner.animeId) }
+                                .padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = AhIcons.BookmarkBorder,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Details",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -217,7 +332,7 @@ fun HeroBannerPager(
                         modifier = Modifier
                             .padding(horizontal = 3.dp)
                             .width(if (selected) 18.dp else 6.dp)
-                            .height(6.dp)
+                            .height(4.dp)
                             .clip(CircleShape)
                             .background(if (selected) palette.crimson else palette.textMuted.copy(alpha = 0.45f))
                     )
@@ -243,13 +358,13 @@ fun ContinueWatchingRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 12.dp)
+            .padding(top = 16.dp)
     ) {
         Text(
             text = "Continue Watching",
             color = palette.textPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.ExtraBold,
             modifier = Modifier.padding(horizontal = AhHorizontalPadding, vertical = 6.dp)
         )
 
@@ -265,10 +380,10 @@ fun ContinueWatchingRow(
             ) { item ->
                 Column(
                     modifier = Modifier
-                        .width(205.dp)
+                        .width(196.dp)
                         .clip(AhShape10)
                         .background(palette.surface)
-                        .border(1.dp, palette.borderSubtle, AhShape10)
+                        .border(1.dp, Color(0x1CFFFFFF), AhShape10)
                         .clickable { onPlayItem(item) }
                 ) {
                     Box(
@@ -285,54 +400,56 @@ fun ContinueWatchingRow(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color(0x33000000))
+                                .background(CARD_BOTTOM_SCRIM)
                         )
-                        Row(
+
+                        // Netflix centered frosted play circle
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(6.dp)
-                                .clip(AhShape4)
-                                .background(
-                                    if (item.isNextEpisode) palette.crimson else Color(0xDD121212)
-                                )
-                                .then(
-                                    if (!item.isNextEpisode) {
-                                        Modifier.border(1.dp, palette.crimson, AhShape4)
-                                    } else {
-                                        Modifier
-                                    }
-                                )
-                                .padding(horizontal = 6.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                .align(Alignment.Center)
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xA6000000))
+                                .border(1.5.dp, Color.White, CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.PlayArrow,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(22.dp)
                             )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(6.dp)
+                                .clip(AhShape4)
+                                .background(if (item.isNextEpisode) palette.crimson else Color(0xCC141414))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
                             Text(
                                 text = if (item.isNextEpisode) {
-                                    "NEXT • ${item.targetEpisodeLabel}"
+                                    "UP NEXT • ${item.targetEpisodeLabel}"
                                 } else {
                                     "EP ${item.targetEpisodeLabel}"
                                 },
                                 color = Color.White,
                                 fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold
                             )
                         }
 
                         if (!item.isNextEpisode && item.durationMs > 0L) {
                             val fraction = (item.resumePositionMs.toFloat() / item.durationMs.toFloat())
-                                .coerceIn(0.03f, 1f)
+                                .coerceIn(0.04f, 1f)
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(4.dp)
+                                    .height(3.5.dp)
                                     .align(Alignment.BottomCenter)
-                                    .background(Color(0x88000000))
+                                    .background(Color(0x55FFFFFF))
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -344,12 +461,12 @@ fun ContinueWatchingRow(
                         }
                     }
 
-                    Column(modifier = Modifier.padding(10.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                         Text(
                             text = item.animeTitle,
                             color = palette.textPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -360,7 +477,7 @@ fun ContinueWatchingRow(
                             } else {
                                 "${formatDurationMs(item.resumePositionMs)} / ${formatDurationMs(item.durationMs)}"
                             },
-                            color = palette.crimson,
+                            color = palette.textMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -373,6 +490,10 @@ fun ContinueWatchingRow(
     }
 }
 
+/**
+ * Iconic Netflix Mobile "Top 10 Popular Today" swimlane:
+ * Large stylized rank numerals nestled beside 2:3 poster cards with red TOP 10 corner ribbons.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PopularHorizontalStrip(
@@ -390,7 +511,7 @@ fun PopularHorizontalStrip(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 14.dp)
+            .padding(top = 18.dp)
     ) {
         Row(
             modifier = Modifier
@@ -399,30 +520,48 @@ fun PopularHorizontalStrip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Popular Today",
-                color = palette.textPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(AhShape4)
+                        .background(palette.crimson)
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "TOP 10",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                Text(
+                    text = "Popular Today",
+                    color = palette.textPrimary,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
             Row(
                 modifier = Modifier
                     .clip(AhShape20)
                     .clickable(onClick = onMoreClick)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "See All",
-                    color = palette.crimson,
-                    fontSize = 13.sp,
+                    color = palette.textSecondary,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     contentDescription = "See All Popular",
-                    tint = palette.crimson,
-                    modifier = Modifier.size(18.dp)
+                    tint = palette.textSecondary,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -430,43 +569,81 @@ fun PopularHorizontalStrip(
         LazyRow(
             state = rowState,
             contentPadding = PaddingValues(horizontal = AhHorizontalPadding),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(
+            itemsIndexed(
                 items = items,
-                key = { it.id },
-                contentType = { "popular_card" }
-            ) { anime ->
-                Box(
-                    modifier = Modifier
-                        .size(width = 128.dp, height = 128.dp)
-                        .clip(AhShape10)
-                        .background(palette.surfaceElevated)
-                        .border(1.dp, palette.borderSubtle, AhShape10)
-                        .clickable { onAnimeClick(anime.id) }
-                ) {
-                    AhCoverImage(
-                        url = anime.coverUrl,
-                        contentDescription = anime.title,
-                        targetSize = ImageTargetSize.POPULAR_CARD,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    if (anime.title.isNotBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .background(Color(0xC8000000))
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = anime.title,
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                key = { _, it -> it.id },
+                contentType = { _, _ -> "popular_card" }
+            ) { index, anime ->
+                val rank = index + 1
+                Row(verticalAlignment = Alignment.Bottom) {
+                    if (rank <= 10) {
+                        Text(
+                            text = rank.toString(),
+                            color = if (palette.isLight) Color(0x38000000) else Color(0x52FFFFFF),
+                            fontSize = if (rank == 10) 62.sp else 74.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = (-3).sp,
+                            modifier = Modifier.offset(x = 10.dp, y = 10.dp)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(width = 114.dp, height = 164.dp)
+                            .clip(AhShape8)
+                            .background(palette.surfaceElevated)
+                            .border(1.dp, Color(0x1EFFFFFF), AhShape8)
+                            .clickable { onAnimeClick(anime.id) }
+                    ) {
+                        AhCoverImage(
+                            url = anime.coverUrl,
+                            contentDescription = anime.title,
+                            targetSize = ImageTargetSize.POPULAR_CARD,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        if (rank <= 10) {
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .clip(TOP10_BADGE_SHAPE)
+                                    .background(palette.crimson)
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "TOP",
+                                    color = Color.White,
+                                    fontSize = 7.sp,
+                                    fontWeight = FontWeight.Black,
+                                    lineHeight = 8.sp
+                                )
+                                Text(
+                                    text = "10",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        }
+                        if (anime.title.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter)
+                                    .background(CARD_BOTTOM_SCRIM)
+                                    .padding(horizontal = 6.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = anime.title,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -486,7 +663,8 @@ fun SectionHeaderWithToggle(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = AhHorizontalPadding, vertical = 10.dp),
+            .padding(horizontal = AhHorizontalPadding)
+            .padding(top = 18.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -494,7 +672,7 @@ fun SectionHeaderWithToggle(
             text = title,
             color = palette.textPrimary,
             fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
@@ -513,7 +691,7 @@ fun SectionHeaderWithToggle(
                         imageVector = AhIcons.FormatListBulleted,
                         contentDescription = "List View",
                         tint = tint,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
                 CircleToggleButton(
@@ -524,7 +702,7 @@ fun SectionHeaderWithToggle(
                         imageVector = AhIcons.GridView,
                         contentDescription = "Grid View",
                         tint = tint,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -541,14 +719,14 @@ private fun CircleToggleButton(
     val palette = LocalAhPalette.current
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(32.dp)
             .clip(CircleShape)
-            .background(if (selected) palette.crimson else palette.surfaceElevated)
-            .border(1.2.dp, if (selected) palette.crimson else palette.borderSubtle, CircleShape)
+            .background(if (selected) Color.White else palette.surfaceElevated)
+            .border(1.dp, if (selected) Color.White else Color(0x30FFFFFF), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        icon(if (selected) Color.White else palette.textSecondary)
+        icon(if (selected) Color.Black else palette.textSecondary)
     }
 }
 
@@ -564,18 +742,18 @@ fun ScheduleListCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = AhHorizontalPadding, vertical = 4.dp)
+            .padding(horizontal = AhHorizontalPadding, vertical = 5.dp)
             .clip(AhShape10)
             .background(palette.surface)
-            .border(1.dp, palette.borderSubtle, AhShape10)
+            .border(1.dp, Color(0x16FFFFFF), AhShape10)
             .clickable(onClick = onClick)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
             modifier = Modifier
-                .width(126.dp)
+                .width(128.dp)
                 .aspectRatio(16f / 9f)
                 .clip(AhShape8)
         ) {
@@ -588,15 +766,17 @@ fun ScheduleListCard(
             if (item.episodeLabel.isNotBlank()) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
+                        .align(Alignment.BottomStart)
+                        .padding(5.dp)
+                        .clip(AhShape4)
                         .background(palette.crimson)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "Ep ${item.episodeLabel}",
+                        text = "EP ${item.episodeLabel}",
                         color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
@@ -610,7 +790,7 @@ fun ScheduleListCard(
                 text = item.title,
                 color = palette.textPrimary,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -630,10 +810,10 @@ fun ScheduleListCard(
 
         Box(
             modifier = Modifier
-                .size(38.dp)
+                .size(36.dp)
                 .clip(CircleShape)
                 .background(if (isBookmarked) palette.crimson else palette.surfaceElevated)
-                .border(1.2.dp, palette.crimson, CircleShape)
+                .border(1.dp, if (isBookmarked) palette.crimson else Color(0x30FFFFFF), CircleShape)
                 .clickable(onClick = onToggleBookmark),
             contentAlignment = Alignment.Center
         ) {
@@ -641,7 +821,7 @@ fun ScheduleListCard(
                 imageVector = if (isBookmarked) AhIcons.Bookmark else AhIcons.BookmarkBorder,
                 contentDescription = if (isBookmarked) "Remove Bookmark" else "Bookmark",
                 tint = Color.White,
-                modifier = Modifier.size(19.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -660,15 +840,13 @@ fun ScheduleGridCard(
         modifier = modifier
             .clip(AhShape10)
             .background(palette.surface)
-            .border(1.dp, palette.borderSubtle, AhShape10)
+            .border(1.dp, Color(0x16FFFFFF), AhShape10)
             .clickable(onClick = onClick)
-            .padding(7.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(AhShape8)
         ) {
             AhCoverImage(
                 url = item.coverUrl,
@@ -676,18 +854,25 @@ fun ScheduleGridCard(
                 targetSize = ImageTargetSize.STANDARD_CARD,
                 modifier = Modifier.fillMaxSize()
             )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(CARD_BOTTOM_SCRIM)
+            )
             if (item.episodeLabel.isNotBlank()) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .clip(AhShape4)
                         .background(palette.crimson)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = item.episodeLabel,
+                        text = "EP ${item.episodeLabel}",
                         color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
@@ -695,10 +880,10 @@ fun ScheduleGridCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
+                        .padding(5.dp)
                         .size(26.dp)
                         .clip(CircleShape)
-                        .background(if (isBookmarked) palette.crimson else Color(0x99000000))
+                        .background(if (isBookmarked) palette.crimson else Color(0xA6000000))
                         .then(
                             if (onToggleBookmark != null) Modifier.clickable(onClick = onToggleBookmark)
                             else Modifier
@@ -709,34 +894,29 @@ fun ScheduleGridCard(
                         imageVector = if (isBookmarked) AhIcons.Bookmark else AhIcons.BookmarkBorder,
                         contentDescription = if (isBookmarked) "Bookmarked" else "Bookmark",
                         tint = Color.White,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = item.title,
-            color = palette.textPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (item.japaneseTitle.isNotBlank()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
-                text = item.japaneseTitle,
-                color = palette.textMuted,
-                fontSize = 11.sp,
-                maxLines = 1,
+                text = item.title,
+                color = palette.textPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
-        }
-        if (item.rankDirection != null || item.timerOrStatus.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
-            RankOrTimerBadge(item = item)
+            if (item.rankDirection != null || item.timerOrStatus.isNotBlank()) {
+                RankOrTimerBadge(item = item)
+            }
         }
     }
 }
@@ -750,11 +930,10 @@ fun SimilarShowCard(
     val palette = LocalAhPalette.current
     Column(
         modifier = modifier
-            .clip(AhShape10)
+            .clip(AhShape8)
             .background(palette.surface)
-            .border(1.dp, palette.borderSubtle, AhShape10)
+            .border(1.dp, Color(0x16FFFFFF), AhShape8)
             .clickable(onClick = onClick)
-            .padding(6.dp)
     ) {
         AhCoverImage(
             url = item.coverUrl,
@@ -763,20 +942,18 @@ fun SimilarShowCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(AhShape8)
         )
-        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = item.title,
             color = palette.textPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp)
+                .height(34.dp)
         )
     }
 }
@@ -786,9 +963,9 @@ private fun RankOrTimerBadge(item: AnimeCard) {
     val palette = LocalAhPalette.current
     if (item.rankDirection != null) {
         val badgeColor = when (item.rankDirection) {
-            RankDirection.UP -> palette.crimson
-            RankDirection.SAME -> palette.crimson
-            RankDirection.DOWN -> palette.surfaceElevated
+            RankDirection.UP -> palette.positiveGreen
+            RankDirection.SAME -> palette.textMuted
+            RankDirection.DOWN -> palette.crimson
         }
         val arrow = when (item.rankDirection) {
             RankDirection.UP -> "▲"
@@ -797,33 +974,33 @@ private fun RankOrTimerBadge(item: AnimeCard) {
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(20.dp)
-                    .background(badgeColor, RANK_BADGE_SHAPE),
+                    .size(18.dp)
+                    .background(badgeColor.copy(alpha = 0.2f), RANK_BADGE_SHAPE),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = arrow,
-                    color = Color.White,
-                    fontSize = 10.sp,
+                    color = badgeColor,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Text(
                 text = item.rankDelta.orEmpty(),
                 color = palette.textSecondary,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
     } else if (item.timerOrStatus.isNotBlank()) {
         Text(
             text = item.timerOrStatus,
-            color = palette.crimson,
-            fontSize = 12.sp,
+            color = palette.positiveGreen,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -870,8 +1047,8 @@ fun AhErrorBox(
             modifier = Modifier
                 .clip(AhShape12)
                 .background(palette.surface)
-                .border(1.dp, palette.crimson, AhShape12)
-                .padding(22.dp),
+                .border(1.dp, palette.borderSubtle, AhShape12)
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -890,8 +1067,8 @@ fun AhErrorBox(
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier
-                    .clip(AhShape8)
-                    .background(palette.crimson)
+                    .clip(AhShape6)
+                    .background(Color.White)
                     .clickable(onClick = onRetry)
                     .padding(horizontal = 20.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -900,14 +1077,14 @@ fun AhErrorBox(
                 Icon(
                     imageVector = Icons.Rounded.Refresh,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = Color.Black,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    text = "Retry",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "Try Again",
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraBold
                 )
             }
         }
