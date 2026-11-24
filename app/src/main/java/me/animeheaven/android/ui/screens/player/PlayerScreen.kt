@@ -873,8 +873,7 @@ fun PlayerScreen(
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = if (compactHud) Modifier.fillMaxWidth() else Modifier.weight(1f),
