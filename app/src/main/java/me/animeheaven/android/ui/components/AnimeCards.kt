@@ -45,9 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,19 +55,18 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
-import coil3.request.ImageRequest
-import coil3.request.allowRgb565
-import coil3.size.Precision
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.delay
 import me.animeheaven.android.data.cache.ImageTargetSize
 import me.animeheaven.android.data.model.AnimeCard
+import me.animeheaven.android.data.model.ArtworkLookupRequest
+import me.animeheaven.android.data.model.ArtworkPriority
+import me.animeheaven.android.data.model.ArtworkSlot
 import me.animeheaven.android.data.model.BannerItem
 import me.animeheaven.android.data.model.ContinueWatchingItem
 import me.animeheaven.android.data.model.FeedViewMode
 import me.animeheaven.android.data.model.RankDirection
+import me.animeheaven.android.data.network.SkipTimesParser
 import me.animeheaven.android.ui.theme.LocalAhPalette
 
 private val HERO_BILLBOARD_SCRIM = Brush.verticalGradient(
@@ -116,37 +113,6 @@ object AhImageLoadTracker {
     val loadedCount = AtomicInteger(0)
 }
 
-private val ON_IMAGE_LOAD_SUCCESS: (AsyncImagePainter.State.Success) -> Unit = {
-    AhImageLoadTracker.loadedCount.incrementAndGet()
-}
-
-@Composable
-fun AhCoverImage(
-    url: String,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-    targetSize: ImageTargetSize = ImageTargetSize.STANDARD_CARD
-) {
-    val context = LocalContext.current
-    val palette = LocalAhPalette.current
-    val request = remember(url, targetSize) {
-        ImageRequest.Builder(context)
-            .data(url)
-            .size(targetSize.widthPx, targetSize.heightPx)
-            .precision(Precision.INEXACT)
-            .allowRgb565(true)
-            .build()
-    }
-    AsyncImage(
-        model = request,
-        contentDescription = contentDescription,
-        contentScale = ContentScale.Crop,
-        filterQuality = FilterQuality.Medium,
-        onSuccess = ON_IMAGE_LOAD_SUCCESS,
-        modifier = modifier.background(palette.surfaceElevated)
-    )
-}
-
 /**
  * Iconic Netflix Mobile Tall Framed Hero Billboard:
  * Large rounded featured poster card with centered A SERIES branding, bold title,
@@ -184,7 +150,13 @@ fun HeroBannerPager(
             beyondViewportPageCount = 1,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(332.dp)
+                .layout { measurable, constraints ->
+                    val cardWidth = constraints.maxWidth - (AhHorizontalPadding * 2).roundToPx()
+                    val height = (cardWidth / 1.6f).toInt().coerceIn(1, 300.dp.roundToPx())
+                        .coerceIn(constraints.minHeight, constraints.maxHeight)
+                    val pager = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+                    layout(pager.width, pager.height) { pager.placeRelative(0, 0) }
+                }
         ) { page ->
             val banner = banners[page]
             Box(
@@ -200,6 +172,8 @@ fun HeroBannerPager(
                     url = banner.bannerImageUrl,
                     contentDescription = banner.title,
                     targetSize = ImageTargetSize.HERO_BANNER,
+                    artwork = ArtworkLookupRequest(banner.animeId, banner.title, priority =
+                        if (page == pagerState.currentPage) ArtworkPriority.HIGH else ArtworkPriority.CACHED_ONLY),
                     modifier = Modifier.fillMaxSize()
                 )
                 Box(
@@ -423,6 +397,9 @@ fun ContinueWatchingRow(
                             url = item.coverUrl,
                             contentDescription = item.animeTitle,
                             targetSize = ImageTargetSize.CONTINUE_CARD,
+                            artwork = ArtworkLookupRequest(item.animeId, item.animeTitle, priority = ArtworkPriority.HIGH),
+                            episodeNumber = SkipTimesParser.parseEpisodeNumber(item.targetEpisodeLabel),
+                            nativeLandscapeFirst = true,
                             modifier = Modifier.fillMaxSize()
                         )
                         Box(
@@ -626,7 +603,7 @@ fun PopularHorizontalStrip(
                     }
                     Box(
                         modifier = Modifier
-                            .size(width = 114.dp, height = 164.dp)
+                            .size(width = 114.dp, height = 171.dp)
                             .clip(AhShape8)
                             .background(palette.surfaceElevated)
                             .border(1.dp, palette.borderSubtle, AhShape8)
@@ -636,6 +613,8 @@ fun PopularHorizontalStrip(
                             url = anime.coverUrl,
                             contentDescription = anime.title,
                             targetSize = ImageTargetSize.POPULAR_CARD,
+                            artwork = ArtworkLookupRequest(anime.id, anime.title, anime.japaneseTitle, priority = ArtworkPriority.FEATURED),
+                            slot = ArtworkSlot.PORTRAIT_2_3,
                             modifier = Modifier.fillMaxSize()
                         )
                         if (rank <= 10) {
@@ -802,6 +781,8 @@ fun ScheduleListCard(
                 url = item.coverUrl,
                 contentDescription = item.title,
                 targetSize = ImageTargetSize.STANDARD_CARD,
+                artwork = ArtworkLookupRequest(item.id, item.title, priority = ArtworkPriority.CACHED_ONLY),
+                nativeLandscapeFirst = true,
                 modifier = Modifier.fillMaxSize()
             )
             if (item.episodeLabel.isNotBlank()) {
@@ -901,6 +882,8 @@ fun ScheduleGridCard(
                 url = item.coverUrl,
                 contentDescription = item.title,
                 targetSize = ImageTargetSize.STANDARD_CARD,
+                artwork = ArtworkLookupRequest(item.id, item.title, priority = ArtworkPriority.CACHED_ONLY),
+                nativeLandscapeFirst = true,
                 modifier = Modifier.fillMaxSize()
             )
             Box(
@@ -995,6 +978,8 @@ fun SimilarShowCard(
             url = item.coverUrl,
             contentDescription = item.title,
             targetSize = ImageTargetSize.STANDARD_CARD,
+            artwork = ArtworkLookupRequest(item.id, item.title, priority = ArtworkPriority.CACHED_ONLY),
+            nativeLandscapeFirst = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)

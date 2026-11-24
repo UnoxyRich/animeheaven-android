@@ -365,7 +365,7 @@ fun AppNavGraph(
                     val animeId = entry.arguments?.getString("animeId").orEmpty()
                     val vm: DetailViewModel = viewModel(
                         factory = simpleFactory {
-                            DetailViewModel(container.repository, animeId, container.preloader)
+                            DetailViewModel(container.repository, animeId, container.preloader, container.artworkResolver)
                         }
                     )
                     AnimeDetailScreen(

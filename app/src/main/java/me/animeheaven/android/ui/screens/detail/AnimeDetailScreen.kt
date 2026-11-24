@@ -60,6 +60,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.animeheaven.android.data.cache.ImageTargetSize
 import me.animeheaven.android.data.local.WatchProgressEntity
 import me.animeheaven.android.data.model.AnimeCard
+import me.animeheaven.android.data.model.ArtworkLookupRequest
+import me.animeheaven.android.data.model.ArtworkPriority
 import me.animeheaven.android.data.model.EpisodeItem
 import me.animeheaven.android.ui.components.AhCoverImage
 import me.animeheaven.android.ui.components.AhErrorBox
@@ -109,7 +111,8 @@ fun AnimeDetailScreen(
                     1.0f to palette.background
                 )
             }
-            val coverForPlayer = detail.bannerUrl ?: detail.posterUrl
+            val artwork = ArtworkLookupRequest(detail.id, detail.title, detail.japaneseTitle,
+                detail.year.take(4).toIntOrNull(), ArtworkPriority.HIGH)
             val listState = rememberLazyListState(
                 prefetchStrategy = remember { LazyListPrefetchStrategy(nestedPrefetchItemCount = 4) }
             )
@@ -149,12 +152,13 @@ fun AnimeDetailScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(240.dp)
+                                .height(minOf(maxWidth * 9 / 16, 260.dp))
                         ) {
                             AhCoverImage(
-                                url = detail.bannerUrl?.takeIf { it.isNotBlank() } ?: detail.posterUrl,
+                                url = detail.landscapeCoverUrl ?: detail.bannerUrl ?: detail.posterUrl,
                                 contentDescription = detail.title,
-                                targetSize = ImageTargetSize.HERO_BANNER,
+                                targetSize = ImageTargetSize.DETAIL_HERO,
+                                artwork = artwork,
                                 modifier = Modifier.fillMaxSize()
                             )
                             Box(
@@ -298,7 +302,7 @@ fun AnimeDetailScreen(
                                                 action.episodeKey,
                                                 detail.id,
                                                 detail.title,
-                                                coverForPlayer
+                                                viewModel.landscapeCover(detail)
                                             )
                                         }
                                         .padding(vertical = 12.dp, horizontal = 16.dp),
@@ -516,7 +520,7 @@ fun AnimeDetailScreen(
                                                 ep.key,
                                                 detail.id,
                                                 detail.title,
-                                                coverForPlayer
+                                                viewModel.landscapeCover(detail)
                                             )
                                         },
                                         modifier = Modifier.weight(1f)

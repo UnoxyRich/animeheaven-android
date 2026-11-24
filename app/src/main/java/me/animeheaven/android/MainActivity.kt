@@ -18,6 +18,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import me.animeheaven.android.ui.navigation.AppNavGraph
+import me.animeheaven.android.ui.components.LocalArtworkResolver
 import me.animeheaven.android.ui.theme.AnimeHeavenTheme
 import me.animeheaven.android.ui.theme.paletteFor
 
@@ -92,12 +94,14 @@ class MainActivity : ComponentActivity() {
             }
 
             AnimeHeavenTheme(themeId = themeId) {
-                AppNavGraph(
-                    container = container,
-                    isInPipModeFlow = isInPipMode,
-                    onRegisterPipEligibility = { check -> pipEligibilityCheck = check },
-                    onRequestPip = { tryEnterPipMode() }
-                )
+                CompositionLocalProvider(LocalArtworkResolver provides container.artworkResolver) {
+                    AppNavGraph(
+                        container = container,
+                        isInPipModeFlow = isInPipMode,
+                        onRegisterPipEligibility = { check -> pipEligibilityCheck = check },
+                        onRequestPip = { tryEnterPipMode() }
+                    )
+                }
             }
         }
 
