@@ -69,6 +69,9 @@ fun MobileTopBar(
     onSearchClick: () -> Unit,
     onRandomClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    headerTitle: String = "For You",
+    showFilterPills: Boolean = true,
+    onPopularClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalAhPalette.current
@@ -83,7 +86,7 @@ fun MobileTopBar(
             .fillMaxWidth()
             .background(topBrush)
             .statusBarsPadding()
-            .padding(bottom = 8.dp)
+            .padding(bottom = if (showFilterPills) 8.dp else 4.dp)
     ) {
         Row(
             modifier = Modifier
@@ -92,7 +95,7 @@ fun MobileTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Netflix-style Red "A" Monogram + "For You"
+            // Netflix-style Red "A" Monogram + Context Title
             Row(
                 modifier = Modifier
                     .clip(AhShape8)
@@ -109,10 +112,12 @@ fun MobileTopBar(
                     letterSpacing = (-1).sp
                 )
                 Text(
-                    text = "For You",
+                    text = headerTitle,
                     color = palette.textPrimary,
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -154,30 +159,35 @@ fun MobileTopBar(
             )
         }
 
-        // Netflix Mobile Horizontal Glass Category Pills
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = AhHorizontalPadding),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (!seasonLabel.isNullOrBlank()) {
+        if (showFilterPills) {
+            // Netflix Mobile Horizontal Glass Category Pills (Home only)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = AhHorizontalPadding),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!seasonLabel.isNullOrBlank()) {
+                    NetflixFilterPill(
+                        label = seasonLabel,
+                        onClick = onSeasonalClick
+                    )
+                }
+                if (onPopularClick != null) {
+                    NetflixFilterPill(
+                        label = "Top 10",
+                        icon = AhIcons.Whatshot,
+                        onClick = onPopularClick
+                    )
+                }
                 NetflixFilterPill(
-                    label = seasonLabel,
-                    onClick = onSeasonalClick
+                    label = "Surprise Me",
+                    icon = AhIcons.Shuffle,
+                    onClick = onRandomClick
                 )
             }
-            NetflixFilterPill(
-                label = "Surprise Me",
-                icon = AhIcons.Shuffle,
-                onClick = onRandomClick
-            )
-            NetflixFilterPill(
-                label = "1080p Subbed",
-                onClick = onLogoClick
-            )
         }
     }
 }

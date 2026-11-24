@@ -85,7 +85,9 @@ fun CatalogScreen(
                 },
                 onSearchClick = onOpenSearch,
                 onRandomClick = onOpenRandom,
-                onSettingsClick = onOpenSettings
+                onSettingsClick = onOpenSettings,
+                headerTitle = state.title,
+                showFilterPills = false
             )
         } else {
             Column(
@@ -193,8 +195,13 @@ fun CatalogScreen(
                         ) {
                             if (isTopTab || !isTagGrid) {
                                 item(key = "header", contentType = "section_header") {
+                                    val sectionTitle = when {
+                                        !isTopTab -> state.title
+                                        viewModel.kind == CatalogKind.POPULAR -> "Ranked by Views"
+                                        else -> "Latest Releases"
+                                    }
                                     SectionHeaderWithToggle(
-                                        title = state.title,
+                                        title = sectionTitle,
                                         viewMode = if (isTagGrid) null else state.viewMode,
                                         onChangeViewMode = if (isTagGrid) null else viewModel::setViewMode
                                     )

@@ -77,7 +77,9 @@ fun BookmarksScreen(
             },
             onSearchClick = onOpenSearch,
             onRandomClick = onOpenRandom,
-            onSettingsClick = onOpenSettings
+            onSettingsClick = onOpenSettings,
+            headerTitle = "My Bookmarks",
+            showFilterPills = false
         )
 
         BoxWithConstraints(
@@ -111,12 +113,14 @@ fun BookmarksScreen(
                     }
                 }
 
-                item(key = "bookmarks_header", contentType = "section_header") {
-                    SectionHeaderWithToggle(
-                        title = "My Bookmarks",
-                        viewMode = null,
-                        onChangeViewMode = null
-                    )
+                if (state.continueWatching.isNotEmpty()) {
+                    item(key = "bookmarks_header", contentType = "section_header") {
+                        SectionHeaderWithToggle(
+                            title = "Saved List",
+                            viewMode = null,
+                            onChangeViewMode = null
+                        )
+                    }
                 }
 
                 if (state.bookmarks.isEmpty()) {

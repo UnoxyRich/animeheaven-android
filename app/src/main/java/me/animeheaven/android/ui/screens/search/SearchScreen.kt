@@ -130,8 +130,8 @@ fun SearchScreen(
                         .weight(1f)
                         .height(44.dp)
                         .clip(AhShape10)
-                        .background(if (palette.isLight) Color.White else Color.Black)
-                        .border(1.5.dp, palette.crimson, AhShape10)
+                        .background(if (palette.isLight) Color.White else palette.surfaceElevated)
+                        .border(1.dp, if (palette.isLight) palette.borderSubtle else Color(0x33FFFFFF), AhShape10)
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -139,7 +139,7 @@ fun SearchScreen(
                     Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = null,
-                        tint = palette.crimson,
+                        tint = palette.textSecondary,
                         modifier = Modifier.size(19.dp)
                     )
                     Box(modifier = Modifier.weight(1f)) {
@@ -408,7 +408,7 @@ fun SearchScreen(
                                     .fillMaxWidth()
                                     .padding(top = 4.dp)
                                     .clip(AhShape10)
-                                    .background(palette.crimson)
+                                    .background(if (palette.isLight) palette.crimson else Color.White)
                                     .clickable {
                                         keyboardController?.hide()
                                         viewModel.submitFullSearch()
@@ -418,9 +418,9 @@ fun SearchScreen(
                             ) {
                                 Text(
                                     text = "Show all results for \"${state.query.trim()}\"",
-                                    color = Color.White,
+                                    color = if (palette.isLight) Color.White else Color.Black,
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.ExtraBold
                                 )
                             }
                         }

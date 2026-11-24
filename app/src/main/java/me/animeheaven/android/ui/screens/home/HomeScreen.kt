@@ -67,7 +67,10 @@ fun HomeScreen(
             },
             onSearchClick = onOpenSearch,
             onRandomClick = onOpenRandom,
-            onSettingsClick = onOpenSettings
+            onSettingsClick = onOpenSettings,
+            headerTitle = "For You",
+            showFilterPills = true,
+            onPopularClick = onOpenPopular
         )
 
         PullToRefreshBox(
