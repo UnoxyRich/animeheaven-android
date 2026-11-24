@@ -40,8 +40,8 @@ class MobileUiSmokeTest {
         // Wait for actual Home feed content & decoded Hero/Top 10 cover images before snapping
         waitForText("Popular Today", timeoutMs = 20_000L)
         waitForText("Subbed Anime Schedule", timeoutMs = 20_000L)
-        waitForImages(minCount = 4, timeoutMs = 15_000L)
-        settle(800L)
+        waitForImages(minCount = 5, timeoutMs = 15_000L)
+        settle(1_000L)
         saveScreenshot("01-phone-home")
 
         // New tab

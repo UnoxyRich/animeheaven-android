@@ -10,20 +10,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -231,9 +231,7 @@ fun SettingsScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 themeRows.forEach { rowThemes ->
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(IntrinsicSize.Min),
+                                        modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         rowThemes.forEach { theme ->
@@ -242,7 +240,7 @@ fun SettingsScreen(
                                             Row(
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .fillMaxHeight()
+                                                    .heightIn(min = 52.dp)
                                                     .clip(AhShape10)
                                                     .background(palette.surfaceElevated)
                                                     .border(
@@ -252,15 +250,14 @@ fun SettingsScreen(
                                                     )
                                                     .clickable {
                                                         settingsStore.setTheme(theme)
-                                                        showStatus(theme.displayName)
                                                     }
-                                                    .padding(horizontal = 9.dp, vertical = 9.dp),
+                                                    .padding(horizontal = 8.dp, vertical = 9.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(26.dp)
+                                                        .size(24.dp)
                                                         .clip(CircleShape)
                                                         .then(
                                                             if (preview.swatchBrush != null) {
@@ -486,6 +483,14 @@ fun SettingsScreen(
             }
         }
 
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                .background(palette.background.copy(alpha = 0.94f))
+        )
+
         AnimatedVisibility(
             visible = statusBanner != null,
             enter = fadeIn(),
@@ -498,13 +503,13 @@ fun SettingsScreen(
             Box(
                 modifier = Modifier
                     .clip(AhShape20)
-                    .background(palette.crimson)
-                    .border(1.dp, Color(0x33FFFFFF), AhShape20)
+                    .background(palette.primaryActionContainer)
+                    .border(1.dp, palette.borderSubtle, AhShape20)
                     .padding(horizontal = 16.dp, vertical = 9.dp)
             ) {
                 Text(
                     text = statusBanner.orEmpty(),
-                    color = Color.White,
+                    color = palette.onPrimaryActionContainer,
                     fontSize = 13.sp,
                     lineHeight = 16.sp,
                     fontWeight = FontWeight.Bold,

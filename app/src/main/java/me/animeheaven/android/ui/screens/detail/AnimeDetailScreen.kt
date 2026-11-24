@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.LazyRow
@@ -243,9 +244,10 @@ fun AnimeDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                if (detail.score.isNotBlank()) {
+                                val normalizedScore = detail.score.trim()
+                                if (normalizedScore.isNotEmpty() && normalizedScore != "?" && !normalizedScore.equals("N/A", ignoreCase = true)) {
                                     Text(
-                                        text = "Score ${detail.score}",
+                                        text = "Score $normalizedScore",
                                         color = palette.positiveGreen,
                                         fontSize = 13.sp,
                                         lineHeight = 17.sp,
@@ -547,6 +549,14 @@ fun AnimeDetailScreen(
                         }
                     }
                 }
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                        .background(palette.background.copy(alpha = 0.94f))
+                )
             }
         }
     }
