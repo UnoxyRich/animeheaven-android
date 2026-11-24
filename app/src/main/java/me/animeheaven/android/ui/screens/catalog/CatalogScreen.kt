@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -79,9 +80,8 @@ fun CatalogScreen(
                 seasonLabel = state.seasonLabel,
                 onLogoClick = { viewModel.load(forceRefresh = true) },
                 onSeasonalClick = {
-                    val path = state.seasonPath ?: "2025fall.php"
                     val label = state.seasonLabel ?: "Season"
-                    onOpenSeasonal(path, label)
+                    state.seasonPath?.takeIf { it.isNotBlank() }?.let { onOpenSeasonal(it, label) }
                 },
                 onSearchClick = onOpenSearch,
                 onRandomClick = onOpenRandom,
@@ -233,11 +233,11 @@ fun CatalogScreen(
                                     }
                                 }
                             } else if (state.viewMode == FeedViewMode.LIST) {
-                                items(
+                                itemsIndexed(
                                     items = state.items,
-                                    key = { it.id },
-                                    contentType = { "catalog_list_card" }
-                                ) { card ->
+                                    key = { index, it -> "anime_${index}_${it.id}" },
+                                    contentType = { _, _ -> "catalog_list_card" }
+                                ) { _, card ->
                                     ScheduleListCard(
                                         item = card,
                                         isBookmarked = state.bookmarkedIds.contains(card.id),

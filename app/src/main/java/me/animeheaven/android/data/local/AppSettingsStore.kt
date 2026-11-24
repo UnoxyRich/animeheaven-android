@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import me.animeheaven.android.data.model.AhThemeId
 import me.animeheaven.android.data.model.FeedViewMode
 import me.animeheaven.android.data.model.PreloadMode
@@ -66,42 +67,42 @@ class AppSettingsStore(context: Context) {
         if (_themeId.value == themeId) return
         prefs.edit().putString(KEY_THEME, themeId.cssKey).apply()
         _themeId.value = themeId
-        _settings.value = _settings.value.copy(themeId = themeId)
+        _settings.update { it.copy(themeId = themeId) }
     }
 
     fun setDefaultViewMode(mode: FeedViewMode) {
         prefs.edit().putString(KEY_VIEW_MODE, mode.name).apply()
-        _settings.value = _settings.value.copy(defaultViewMode = mode)
+        _settings.update { it.copy(defaultViewMode = mode) }
     }
 
     fun setAutoPlayNext(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_PLAY_NEXT, enabled).apply()
-        _settings.value = _settings.value.copy(autoPlayNext = enabled)
+        _settings.update { it.copy(autoPlayNext = enabled) }
     }
 
     fun setSkipOpSeconds(seconds: Int) {
         prefs.edit().putInt(KEY_SKIP_OP_SECONDS, seconds).apply()
-        _settings.value = _settings.value.copy(skipOpSeconds = seconds)
+        _settings.update { it.copy(skipOpSeconds = seconds) }
     }
 
     fun setSkipPromptEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_SKIP_PROMPT_ENABLED, enabled).apply()
-        _settings.value = _settings.value.copy(skipPromptEnabled = enabled)
+        _settings.update { it.copy(skipPromptEnabled = enabled) }
     }
 
     fun setDoubleTapSeekSeconds(seconds: Int) {
         prefs.edit().putInt(KEY_DOUBLE_TAP_SEEK_SECONDS, seconds).apply()
-        _settings.value = _settings.value.copy(doubleTapSeekSeconds = seconds)
+        _settings.update { it.copy(doubleTapSeekSeconds = seconds) }
     }
 
     fun setAutoLandscapePlayer(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_LANDSCAPE_PLAYER, enabled).apply()
-        _settings.value = _settings.value.copy(autoLandscapePlayer = enabled)
+        _settings.update { it.copy(autoLandscapePlayer = enabled) }
     }
 
     fun setPreloadMode(mode: PreloadMode) {
         prefs.edit().putString(KEY_PRELOAD_MODE, mode.name).apply()
-        _settings.value = _settings.value.copy(preloadMode = mode)
+        _settings.update { it.copy(preloadMode = mode) }
     }
 
     companion object {

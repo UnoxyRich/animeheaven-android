@@ -3,8 +3,8 @@ package me.animeheaven.android.ui.screens.player
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.Rect
 import android.media.AudioManager
-import android.os.Build
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
@@ -21,13 +21,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -53,6 +58,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,9 +72,18 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,6 +93,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.AudioAttributes
@@ -88,6 +104,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import me.animeheaven.android.MainActivity
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlin.math.roundToInt
@@ -104,6 +121,7 @@ import me.animeheaven.android.ui.components.AhShape8
 import me.animeheaven.android.ui.components.formatDurationMs
 import me.animeheaven.android.ui.theme.LocalAhPalette
 
+@OptIn(UnstableApi::class)
 private enum class ResizeOption(val label: String, val mode: Int) {
     FIT("Fit", AspectRatioFrameLayout.RESIZE_MODE_FIT),
     FILL("Fill", AspectRatioFrameLayout.RESIZE_MODE_FILL),
@@ -133,6 +151,7 @@ private class PlaybackProgressState {
 }
 
 @OptIn(UnstableApi::class)
+@kotlin.OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel,
@@ -148,26 +167,30 @@ fun PlayerScreen(
 
     val context = LocalContext.current
     val activity = context as? Activity
+    val pipActivity = activity as? MainActivity
     val view = LocalView.current
+    val compactHud = LocalConfiguration.current.screenWidthDp < 550
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val progressState = remember { PlaybackProgressState() }
 
     var isPlaying by remember { mutableStateOf(false) }
+    var wantsPlayback by remember { mutableStateOf(false) }
+    var pipSource by remember { mutableStateOf<Rect?>(null) }
     var isBuffering by remember { mutableStateOf(true) }
 
     var hudVisible by remember { mutableStateOf(true) }
     var hudInteractionNonce by remember { mutableIntStateOf(0) }
-    var isLocked by remember { mutableStateOf(false) }
+    var isLocked by rememberSaveable { mutableStateOf(false) }
     var showUnlockHintNonce by remember { mutableIntStateOf(0) }
 
     var seekFeedback by remember { mutableStateOf<String?>(null) }
     var seekFeedbackNonce by remember { mutableIntStateOf(0) }
     var gestureIndicator by remember { mutableStateOf<GestureIndicator?>(null) }
 
-    var resizeOption by remember { mutableStateOf(ResizeOption.FIT) }
-    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
-    var isLandscape by remember { mutableStateOf(settings.autoLandscapePlayer) }
+    var resizeOption by rememberSaveable { mutableStateOf(ResizeOption.FIT) }
+    var playbackSpeed by rememberSaveable { mutableFloatStateOf(1.0f) }
+    var isLandscape by rememberSaveable { mutableStateOf(settings.autoLandscapePlayer) }
 
     var upNextSecondsLeft by remember { mutableIntStateOf(0) }
     var showUpNextOverlay by remember { mutableStateOf(false) }
@@ -202,10 +225,8 @@ fun PlayerScreen(
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
-            .apply {
-                playWhenReady = true
-            }
     }
+    var resumeOnStart by remember(exoPlayer) { mutableStateOf(false) }
 
     // Register PiP eligibility when playing and clean up on exit
     DisposableEffect(exoPlayer) {
@@ -215,44 +236,78 @@ fun PlayerScreen(
         }
     }
 
-    // Orientation, keep-screen-on, and immersive system bars
-    DisposableEffect(view, isLandscape) {
+    LaunchedEffect(pipActivity, wantsPlayback, isPlaying, pipSource, state.errorMessage, showUpNextOverlay) {
+        pipActivity?.updatePlayerPip(wantsPlayback && state.errorMessage == null && !showUpNextOverlay,
+            wantsPlayback, pipSource) { command ->
+            if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@updatePlayerPip
+            when (command) {
+                "toggle" -> if (exoPlayer.playWhenReady) exoPlayer.pause() else exoPlayer.play()
+                "back" -> exoPlayer.seekTo((exoPlayer.currentPosition - 10_000L).coerceAtLeast(0L))
+                "forward" -> exoPlayer.seekTo((exoPlayer.currentPosition + 10_000L)
+                    .coerceAtMost(exoPlayer.duration.takeIf { it > 0L } ?: Long.MAX_VALUE))
+            }
+        }
+    }
+
+    DisposableEffect(pipActivity, exoPlayer) {
+        onDispose { pipActivity?.updatePlayerPip(false, false, null, null) }
+    }
+
+    DisposableEffect(view, activity) {
         val window = activity?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
         insetsController?.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         insetsController?.hide(WindowInsetsCompat.Type.systemBars())
 
-        activity?.requestedOrientation = if (isLandscape) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-
         onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             insetsController?.show(WindowInsetsCompat.Type.systemBars())
         }
+    }
+
+    LaunchedEffect(activity, isLandscape) {
+        activity?.requestedOrientation = if (isLandscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle(
+        minActiveState = Lifecycle.State.CREATED
+    )
+    val keepAwake = lifecycleState.isAtLeast(Lifecycle.State.STARTED) &&
+        state.errorMessage == null && (isPlaying || isBuffering && wantsPlayback)
+    DisposableEffect(view, keepAwake) {
+        view.keepScreenOn = keepAwake
+        onDispose { view.keepScreenOn = false }
     }
 
     DisposableEffect(activity) {
         onDispose {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            activity?.window?.let { window ->
+                window.attributes = window.attributes.apply {
+                    screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                }
+            }
         }
     }
 
-    // Lifecycle & ExoPlayer listener + cleanup
-    DisposableEffect(lifecycleOwner, exoPlayer) {
+    fun saveCurrentProgress() {
+        val item = exoPlayer.currentMediaItem ?: return
+        if (item.mediaId != latestState.stream?.episodeKey) return
+        viewModel.persistProgress(exoPlayer.currentPosition.coerceAtLeast(0L),
+            exoPlayer.duration.coerceAtLeast(progressState.durationMs))
+    }
+
+    DisposableEffect(exoPlayer) {
         val playerListener = object : Player.Listener {
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                wantsPlayback = playWhenReady
+            }
+
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 if (!playing) {
-                    val pos = exoPlayer.currentPosition.coerceAtLeast(0L)
-                    val dur = exoPlayer.duration.coerceAtLeast(progressState.durationMs)
-                    if (dur > 0L) {
-                        viewModel.persistProgress(pos, dur)
-                    }
+                    saveCurrentProgress()
                 }
             }
 
@@ -307,36 +362,48 @@ fun PlayerScreen(
             }
         }
         exoPlayer.addListener(playerListener)
+        onDispose {
+            exoPlayer.removeListener(playerListener)
+            saveCurrentProgress()
+            viewModel.stopStreamingBoost()
+            exoPlayer.release()
+        }
+    }
 
+    DisposableEffect(lifecycleOwner, exoPlayer) {
         val lifecycleObserver = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && !latestIsInPip) {
-                viewModel.persistProgress(
-                    positionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
-                    durationMs = exoPlayer.duration.coerceAtLeast(progressState.durationMs)
-                )
+            if (event == Lifecycle.Event.ON_STOP) {
+                resumeOnStart = exoPlayer.playWhenReady
+                viewModel.stopStreamingBoost()
+                saveCurrentProgress()
                 exoPlayer.pause()
+            } else if (event == Lifecycle.Event.ON_START && resumeOnStart) {
+                resumeOnStart = false
+                val snapshot = latestState
+                val url = snapshot.mirrorState.currentUrl
+                if (url != null && snapshot.errorMessage == null &&
+                    exoPlayer.currentMediaItem?.mediaId == snapshot.stream?.episodeKey
+                ) {
+                    exoPlayer.play()
+                    viewModel.startStreamingBoost(url, snapshot.activeCacheKey ?: url,
+                        exoPlayer.currentPosition, exoPlayer.duration)
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
 
-        onDispose {
-            viewModel.stopStreamingBoost()
-            viewModel.persistProgress(
-                positionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
-                durationMs = exoPlayer.duration.coerceAtLeast(progressState.durationMs)
-            )
-            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
-            exoPlayer.removeListener(playerListener)
-            exoPlayer.release()
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(lifecycleObserver) }
     }
 
     // Load active mirror URL into ExoPlayer with shared episode cache key & direct resume
     val activeUrl = state.mirrorState.currentUrl
     val activeCacheKey = state.activeCacheKey ?: activeUrl
     val episodeKey = state.stream?.episodeKey
-    LaunchedEffect(activeUrl, episodeKey) {
-        if (!activeUrl.isNullOrBlank() && !activeCacheKey.isNullOrBlank()) {
+    LaunchedEffect(exoPlayer, lifecycleOwner, activeUrl, episodeKey, state.errorMessage) {
+        if (state.errorMessage != null || activeUrl.isNullOrBlank() || activeCacheKey.isNullOrBlank() || episodeKey == null) {
+            exoPlayer.pause()
+            exoPlayer.clearMediaItems()
+        } else {
             videoCacheManager.cancelPreloadsExcept(episodeKey ?: activeUrl)
             showUpNextOverlay = false
             activeSkipSegment = null
@@ -348,13 +415,16 @@ fun PlayerScreen(
 
             val mediaItem = MediaItem.Builder()
                 .setUri(activeUrl)
+                .setMediaId(episodeKey)
                 .setCustomCacheKey(activeCacheKey)
                 .build()
             exoPlayer.setMediaItem(mediaItem, resumeMs)
             exoPlayer.prepare()
             exoPlayer.setPlaybackSpeed(playbackSpeed)
-            exoPlayer.playWhenReady = true
-            viewModel.startStreamingBoost(
+            val started = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            exoPlayer.playWhenReady = started
+            resumeOnStart = !started
+            if (started) viewModel.startStreamingBoost(
                 activeUrl = activeUrl,
                 activeCacheKey = activeCacheKey,
                 initialPositionMs = resumeMs,
@@ -380,14 +450,14 @@ fun PlayerScreen(
             if (dur > 0L) progressState.durationMs = dur
             progressState.bufferedMs = buf
 
-            viewModel.updateBoosterProgress(pos, resolvedDur)
+            viewModel.updateBoosterProgress(pos, resolvedDur, buf)
             val playingNow = exoPlayer.isPlaying
             if (playingNow && (buf - pos) >= 18_000L) {
                 viewModel.onPlaybackHealthyBufferAhead()
             }
             if (latestIsBuffering && exoPlayer.playWhenReady && !latestShowUpNext && (buf - pos) < 1_500L) {
                 continuousBufferingMs += 500L
-                if (continuousBufferingMs >= 5_500L) {
+                if (continuousBufferingMs >= 15_000L) {
                     continuousBufferingMs = 0L
                     viewModel.onBufferingStallDetected(pos)
                 }
@@ -456,16 +526,18 @@ fun PlayerScreen(
         if (hudVisible) activeSkipSegment = null
     }
 
-    LaunchedEffect(showUpNextOverlay) {
+    LaunchedEffect(showUpNextOverlay, lifecycleOwner) {
         if (showUpNextOverlay) {
             activeSkipSegment = null
-            while (upNextSecondsLeft > 0 && showUpNextOverlay) {
-                delay(1000L)
-                upNextSecondsLeft--
-            }
-            if (showUpNextOverlay && upNextSecondsLeft <= 0) {
-                showUpNextOverlay = false
-                latestState.stream?.nextEpisodeKey?.let { viewModel.loadEpisode(it) }
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (upNextSecondsLeft > 0 && showUpNextOverlay) {
+                    delay(1000L)
+                    upNextSecondsLeft--
+                }
+                if (showUpNextOverlay && upNextSecondsLeft <= 0) {
+                    showUpNextOverlay = false
+                    latestState.stream?.nextEpisodeKey?.let { viewModel.loadEpisode(it) }
+                }
             }
         }
     }
@@ -564,7 +636,11 @@ fun PlayerScreen(
                     playerView.resizeMode = resizeOption.mode
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            onRelease = { it.player = null },
+            modifier = Modifier.fillMaxSize().onGloballyPositioned {
+                val bounds = it.boundsInWindow()
+                pipSource = Rect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
+            }
         )
 
         // Touch Gesture Layer (disabled in PiP)
@@ -789,18 +865,19 @@ fun PlayerScreen(
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Top Scrim Bar
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
                         .background(HUD_TOP_SCRIM)
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = if (compactHud) Modifier.fillMaxWidth() else Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -828,6 +905,7 @@ fun PlayerScreen(
                     }
 
                     Row(
+                        modifier = if (compactHud) Modifier.horizontalScroll(rememberScrollState()) else Modifier,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -862,7 +940,7 @@ fun PlayerScreen(
                                 hudInteractionNonce++
                             }
                         )
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        if (pipActivity?.supportsPip == true) {
                             HudIconButton(
                                 icon = AhIcons.PictureInPictureAlt,
                                 contentDescription = "Picture in Picture",
@@ -1172,7 +1250,19 @@ private fun PlayerInteractiveSeekSection(
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(26.dp)
+                .height(48.dp)
+                .semantics {
+                    contentDescription = "Playback position"
+                    progressBarRangeInfo = ProgressBarRangeInfo(
+                        (displayPosMs.toFloat() / safeDuration).coerceIn(0f, 1f), 0f..1f
+                    )
+                    setProgress { value ->
+                        if (progressState.durationMs <= 0L) false else {
+                            onScrubCommit((value.coerceIn(0f, 1f) * safeDuration).toLong())
+                            true
+                        }
+                    }
+                }
                 .pointerInput(safeDuration) {
                     detectTapGestures { offset ->
                         val frac = (offset.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
@@ -1370,11 +1460,11 @@ private fun HudIconButton(
 ) {
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .background(Color(0xAA121212))
             .border(1.dp, Color(0x33FFFFFF), CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -1397,7 +1487,8 @@ private fun HudPillChip(
             .clip(AhShape20)
             .background(Color(0xCC121212))
             .border(1.dp, Color(0x44FFFFFF), AhShape20)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)

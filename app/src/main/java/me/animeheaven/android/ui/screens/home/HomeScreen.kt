@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -61,9 +62,8 @@ fun HomeScreen(
             seasonLabel = feed?.seasonLabel,
             onLogoClick = { viewModel.loadHome(forceRefresh = true) },
             onSeasonalClick = {
-                val path = feed?.seasonPath ?: "2025fall.php"
                 val label = feed?.seasonLabel ?: "Season"
-                onOpenSeasonal(path, label)
+                feed?.seasonPath?.takeIf { it.isNotBlank() }?.let { onOpenSeasonal(it, label) }
             },
             onSearchClick = onOpenSearch,
             onRandomClick = onOpenRandom,
@@ -166,11 +166,11 @@ fun HomeScreen(
                             }
 
                             if (state.viewMode == FeedViewMode.LIST) {
-                                items(
+                                itemsIndexed(
                                     items = feed.scheduleItems,
-                                    key = { it.id },
-                                    contentType = { "schedule_list_card" }
-                                ) { card ->
+                                    key = { index, it -> "anime_${index}_${it.id}" },
+                                    contentType = { _, _ -> "schedule_list_card" }
+                                ) { _, card ->
                                     ScheduleListCard(
                                         item = card,
                                         isBookmarked = state.bookmarkedIds.contains(card.id),

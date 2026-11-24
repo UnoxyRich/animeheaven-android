@@ -10,7 +10,7 @@ This document covers the networking, HTML parsing, multi-tier caching, Wi-Fi/cel
 - Base URL: `https://animeheaven.me`
 - Dispatcher limits: `maxRequests = 32`, `maxRequestsPerHost = 12`
 - ConnectionPool: `12` idle connections, `5 min` keep-alive
-- HTTP Disk Cache: `24 MB` under `cacheDir/http_cache` (used for HTML/API calls; stripped from Coil via `okHttpClient.newBuilder().cache(null).build()` so artwork is never double-cached on flash)
+- HTML/API caching is owned by Room and bounded in-memory caches; OkHttp has no on-disk HTTP cache. Coil owns its image cache separately.
 - Cancellable requests via `OkHttpClient.awaitResponse(request)` using `suspendCancellableCoroutine` + `cont.invokeOnCancellation { call.cancel() }`, cancelling underlying sockets immediately on rapid typing or back navigation.
 - [`CachedDns`](../app/src/main/java/me/animeheaven/android/data/network/NetworkOptimizer.kt): 5-minute in-memory DNS TTL cache with stale IP fallback on `UnknownHostException`.
 
@@ -98,7 +98,7 @@ Coil memory allocation in `AppContainer`: `18%` of memory class on low-RAM devic
 
 ### Shared Episode Cache Keys ([`VideoCacheManager.kt`](../app/src/main/java/me/animeheaven/android/data/cache/VideoCacheManager.kt))
 - `buildEpisodeCacheKey(episodeKey, contentLength, fallbackUrl)` computes `"ep:$episodeKey:$contentLength"` once a probe confirms `contentLength >= MIN_VALID_VIDEO_BYTES`.
-- Switching mirrors mid-playback or failover hits already-downloaded chunks in `SimpleCache` (`512 MB` budget on standard storage, `1 GB` when usable space >= `4 GB`; `2 MB` fragment size, `512 KB` chunk size).
+- Switching verified mirrors reuses `SimpleCache` chunks. The budget is capped at a quarter of usable disk space (`512 MB` target below `4 GB` free, `1 GB` otherwise; `2 MB` fragments and `512 KB` chunks).
 - `videoCacheManager.cancelPreloadsExcept(episodeKey)` preserves in-flight preloads for the episode currently opening.
 
 ### First-Valid-Mirror Probe & `MirrorHealthTracker`

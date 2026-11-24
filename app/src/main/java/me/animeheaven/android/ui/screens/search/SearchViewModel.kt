@@ -5,19 +5,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import me.animeheaven.android.data.cache.AnimePreloader
 import me.animeheaven.android.data.model.AnimeCard
 import me.animeheaven.android.data.model.FastSearchItem
 import me.animeheaven.android.data.repository.AnimeHeavenRepository
+import me.animeheaven.android.data.runCatchingCancellable
 
 interface SearchGateway {
     fun observeRecentSearches(): Flow<List<String>>
@@ -58,6 +60,10 @@ class SearchViewModel(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var activeSearchJob: Job? = null
+    private var queryRevision = 0L
+    private val typedQueryEvents = MutableSharedFlow<Pair<Long, String>>(
+        replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
 
     init {
         viewModelScope.launch {
@@ -68,11 +74,10 @@ class SearchViewModel(
         }
 
         viewModelScope.launch {
-            _uiState
-                .map { it.query.trim() }
-                .distinctUntilChanged()
+            typedQueryEvents
                 .debounce(debounceMillis)
-                .collect { trimmed ->
+                .collect { (revision, trimmed) ->
+                    if (revision != queryRevision) return@collect
                     if (trimmed.length >= 2) {
                         runFastSearch(trimmed)
                     } else {
@@ -91,14 +96,19 @@ class SearchViewModel(
     }
 
     fun updateQuery(newQuery: String) {
-        val capped = if (newQuery.length > 100) newQuery.take(100) else newQuery
-        _uiState.update { state ->
-            if (state.query == capped) state
-            else state.copy(query = capped, isFullSearchMode = false, errorMessage = null)
+        val capped = newQuery.take(100)
+        if (_uiState.value.query == capped) return
+        val revision = ++queryRevision
+        activeSearchJob?.cancel()
+        _uiState.update {
+            it.copy(query = capped, fastResults = emptyList(), isLoading = capped.trim().length >= 2,
+                isFullSearchMode = false, errorMessage = null)
         }
+        typedQueryEvents.tryEmit(revision to capped.trim())
     }
 
     fun clearQuery() {
+        queryRevision++
         activeSearchJob?.cancel()
         _uiState.update {
             it.copy(
@@ -125,16 +135,18 @@ class SearchViewModel(
     fun submitFullSearch() {
         val trimmed = _uiState.value.query.trim()
         if (trimmed.isEmpty()) return
+        queryRevision++
 
         activeSearchJob?.cancel()
         activeSearchJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(isLoading = true, errorMessage = null, isFullSearchMode = true)
             }
-            runCatching {
+            runCatchingCancellable {
                 gateway.recordSearch(trimmed)
                 gateway.fullSearch(trimmed)
             }.onSuccess { (title, results) ->
+                coroutineContext.ensureActive()
                 _uiState.update {
                     it.copy(
                         fullResultsTitle = title.ifBlank { trimmed },
@@ -146,6 +158,7 @@ class SearchViewModel(
                 }
                 preloader?.preloadCatalogPage(results)
             }.onFailure { err ->
+                coroutineContext.ensureActive()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -161,9 +174,10 @@ class SearchViewModel(
         activeSearchJob?.cancel()
         activeSearchJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            runCatching {
+            runCatchingCancellable {
                 gateway.fastSearch(trimmedQuery)
             }.onSuccess { items ->
+                coroutineContext.ensureActive()
                 _uiState.update {
                     it.copy(
                         fastResults = items,
@@ -174,6 +188,7 @@ class SearchViewModel(
                 }
                 preloader?.preloadSearchMatches(items)
             }.onFailure { err ->
+                coroutineContext.ensureActive()
                 _uiState.update {
                     it.copy(
                         isLoading = false,

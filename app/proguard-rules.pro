@@ -18,11 +18,6 @@
 -dontwarn java.lang.invoke.StringConcatFactory
 
 # Media3 / Coil 3 / OkHttp / Coroutines ship their own precise consumer ProGuard rules.
--dontwarn okhttp3.**
--dontwarn okio.**
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
--dontwarn org.jsoup.**
--dontwarn androidx.media3.**
--dontwarn coil3.**

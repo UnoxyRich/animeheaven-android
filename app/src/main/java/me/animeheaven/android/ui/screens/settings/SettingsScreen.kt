@@ -23,9 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import me.animeheaven.android.data.local.AppSettingsStore
 import me.animeheaven.android.data.model.AhThemeId
 import me.animeheaven.android.data.model.FeedViewMode
@@ -72,6 +77,32 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var statusBanner by remember { mutableStateOf<String?>(null) }
     var cacheSummary by remember { mutableStateOf("Calculating...") }
+    var pendingClear by remember { mutableStateOf<ClearTarget?>(null) }
+
+    pendingClear?.let { target ->
+        val history = target == ClearTarget.HISTORY
+        AlertDialog(
+            onDismissRequest = { pendingClear = null },
+            title = { Text(if (history) "Clear watch history?" else "Clear offline caches?") },
+            text = {
+                Text(if (history) "Saved progress and Continue Watching will be removed."
+                else "Cached pages, images, and video will be removed. Watch history and bookmarks will stay.")
+            },
+            dismissButton = { TextButton(onClick = { pendingClear = null }) { Text("Cancel") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingClear = null
+                    scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        withContext(NonCancellable) {
+                            if (history) repository.clearWatchHistory() else onClearAllCaches()
+                        }
+                        if (!history) cacheSummary = onGetCacheSummary()
+                        statusBanner = if (history) "Watch history cleared" else "Offline caches cleared"
+                    }
+                }) { Text("Clear") }
+            }
+        )
+    }
 
     LaunchedEffect(Unit) {
         cacheSummary = onGetCacheSummary()
@@ -388,12 +419,7 @@ fun SettingsScreen(
                             }
                             ActionButton(
                                 label = "Clear Continue Watching & Progress",
-                                onClick = {
-                                    scope.launch {
-                                        repository.clearWatchHistory()
-                                        statusBanner = "Watch history cleared"
-                                    }
-                                }
+                                onClick = { pendingClear = ClearTarget.HISTORY }
                             )
                             ActionButton(
                                 label = "Clear Recent Searches",
@@ -406,13 +432,7 @@ fun SettingsScreen(
                             )
                             ActionButton(
                                 label = "Clear Offline Cache (Web • Images • Video)",
-                                onClick = {
-                                    scope.launch {
-                                        onClearAllCaches()
-                                        cacheSummary = onGetCacheSummary()
-                                        statusBanner = "All caches cleared"
-                                    }
-                                }
+                                onClick = { pendingClear = ClearTarget.CACHE }
                             )
                         }
                     }
@@ -554,3 +574,4 @@ private fun ActionButton(
         )
     }
 }
+private enum class ClearTarget { HISTORY, CACHE }

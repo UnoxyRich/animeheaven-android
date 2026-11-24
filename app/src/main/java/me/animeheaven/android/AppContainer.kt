@@ -13,15 +13,21 @@ import coil3.request.crossfade
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import me.animeheaven.android.data.cache.AnimePreloader
 import me.animeheaven.android.data.cache.ImageTargetSize
 import me.animeheaven.android.data.cache.VideoCacheManager
 import me.animeheaven.android.data.local.AppDatabase
 import me.animeheaven.android.data.local.AppSettingsStore
 import me.animeheaven.android.data.network.AnimeHeavenClient
+import me.animeheaven.android.data.network.CachedDns
 import me.animeheaven.android.data.network.NetworkPolicy
 import me.animeheaven.android.data.network.NetworkPreconnector
 import me.animeheaven.android.data.network.SkipTimesClient
@@ -30,10 +36,13 @@ import okhttp3.OkHttpClient
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val cacheClearMutex = Mutex()
+    private var startupJob: Job? = null
+    private val dns = CachedDns()
 
     val okHttpClient: OkHttpClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        AnimeHeavenClient.defaultOkHttpClient(appContext.cacheDir)
+        AnimeHeavenClient.defaultOkHttpClient(dns)
     }
     val client: AnimeHeavenClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         AnimeHeavenClient(okHttpClient)
@@ -43,11 +52,12 @@ class AppContainer(context: Context) {
     }
     val settingsStore: AppSettingsStore = AppSettingsStore(appContext)
     val networkPolicy: NetworkPolicy by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        NetworkPolicy(appContext, settingsStore)
+        NetworkPolicy(appContext, settingsStore, dns)
     }
-    val repository: AnimeHeavenRepository by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+    private val repositoryLazy = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         AnimeHeavenRepository(client, database, appContext.filesDir)
     }
+    val repository: AnimeHeavenRepository by repositoryLazy
 
     private val skipTimesClientLazy = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         SkipTimesClient(okHttpClient, database.webCacheDao())
@@ -63,8 +73,6 @@ class AppContainer(context: Context) {
         val am = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
         val isLowRam = am?.isLowRamDevice == true || (am?.memoryClass ?: 256) <= 192
         val memFraction = if (isLowRam) 0.18 else 0.25
-        val coilHttpClient = okHttpClient.newBuilder().cache(null).build()
-
         ImageLoader.Builder(appContext)
             .memoryCache {
                 MemoryCache.Builder()
@@ -80,7 +88,7 @@ class AppContainer(context: Context) {
                     .build()
             }
             .components {
-                add(OkHttpNetworkFetcherFactory(callFactory = { coilHttpClient }))
+                add(OkHttpNetworkFetcherFactory(callFactory = { okHttpClient }))
             }
             .allowRgb565(true)
             .crossfade(120)
@@ -88,7 +96,7 @@ class AppContainer(context: Context) {
     }
     val imageLoader: ImageLoader by imageLoaderLazy
 
-    val preloader: AnimePreloader by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+    private val preloaderLazy = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         AnimePreloader(
             context = appContext,
             repository = repository,
@@ -100,9 +108,11 @@ class AppContainer(context: Context) {
         )
     }
 
+    val preloader: AnimePreloader by preloaderLazy
+
     fun warmUpOnStartup() {
-        appScope.launch {
-            NetworkPreconnector.preconnectAsync(okHttpClient)
+        startupJob = appScope.launch {
+            if (networkPolicy.shouldPreloadHomeDetails()) NetworkPreconnector.preconnectAsync(okHttpClient)
 
             val fastFeed = runCatching { repository.hydrateHomeFastSync() }.getOrNull()
             if (fastFeed != null) {
@@ -149,7 +159,7 @@ class AppContainer(context: Context) {
             }
         }
         if (aggressive || moderate) {
-            runCatching { repository.trimMemory(aggressive = aggressive) }
+            if (repositoryLazy.isInitialized()) repository.trimMemory(aggressive = aggressive)
             if (skipTimesClientLazy.isInitialized()) {
                 runCatching { skipTimesClient.trimMemory(aggressive = aggressive) }
             }
@@ -159,27 +169,34 @@ class AppContainer(context: Context) {
         }
     }
 
-    suspend fun clearAllCaches() {
-        repository.clearWebPageCache()
-        if (skipTimesClientLazy.isInitialized()) {
-            skipTimesClient.clearMemoryCache()
+    suspend fun clearAllCaches(): Unit = withContext(Dispatchers.IO) {
+        cacheClearMutex.withLock {
+            startupJob?.cancelAndJoin()
+            if (preloaderLazy.isInitialized()) preloader.withoutPreloading { clearCachesOnDisk() }
+            else clearCachesOnDisk()
         }
-        preloader.resetSessionMarkers()
+    }
+
+    private suspend fun clearCachesOnDisk() {
+        if (skipTimesClientLazy.isInitialized()) skipTimesClient.clearMemoryCache()
+        repository.clearWebPageCache()
         videoCacheManager.clearAll()
         runCatching {
             if (imageLoaderLazy.isInitialized()) {
                 imageLoader.memoryCache?.clear()
                 imageLoader.diskCache?.clear()
+            } else {
+                File(appContext.cacheDir, "image_cache").deleteRecursively()
             }
         }
-        runCatching { okHttpClient.cache?.evictAll() }
+        File(appContext.cacheDir, "http_cache").deleteRecursively()
     }
 
-    suspend fun getCacheSummaryText(): String {
+    suspend fun getCacheSummaryText(): String = withContext(Dispatchers.IO) {
         val webKb = repository.getWebCacheBytes() / 1024L
         val pageCount = repository.getCachedPageCount()
         val imgMb = (imageLoader.diskCache?.size ?: 0L) / (1024L * 1024L)
         val vidMb = videoCacheManager.cachedBytesSize() / (1024L * 1024L)
-        return "Web: ${webKb} KB ($pageCount pages) • Images: ${imgMb} MB • Video: ${vidMb} MB"
+        "Web: ${webKb} KB ($pageCount pages) • Images: ${imgMb} MB • Video: ${vidMb} MB"
     }
 }

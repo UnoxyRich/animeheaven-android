@@ -11,16 +11,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -298,14 +303,15 @@ fun MobileBottomBar(
                     modifier = Modifier
                         .weight(1f)
                         .clip(AhShape8)
-                        .clickable { onSelectTab(tab) }
+                        .heightIn(min = 48.dp)
+                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelectTab(tab) })
                         .padding(vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Icon(
                         imageVector = tab.icon,
-                        contentDescription = tab.label,
+                        contentDescription = null,
                         tint = if (selected) palette.textPrimary else palette.textMuted,
                         modifier = Modifier.size(23.dp)
                     )
@@ -318,6 +324,21 @@ fun MobileBottomBar(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun MobileNavigationRail(activeTab: TopTabDestination, onSelectTab: (TopTabDestination) -> Unit) {
+    val palette = LocalAhPalette.current
+    NavigationRail(containerColor = palette.surface) {
+        TopTabDestination.entries.forEach { tab ->
+            NavigationRailItem(
+                selected = activeTab == tab,
+                onClick = { onSelectTab(tab) },
+                icon = { Icon(tab.icon, contentDescription = null) },
+                label = { Text(tab.label) }
+            )
         }
     }
 }

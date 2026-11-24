@@ -578,7 +578,7 @@ fun PopularHorizontalStrip(
         ) {
             itemsIndexed(
                 items = items,
-                key = { _, it -> it.id },
+                key = { index, it -> "anime_${index}_${it.id}" },
                 contentType = { _, _ -> "popular_card" }
             ) { index, anime ->
                 val rank = index + 1

@@ -1,12 +1,14 @@
 package me.animeheaven.android.ui.navigation
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -17,6 +19,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,8 +36,10 @@ import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import me.animeheaven.android.AppContainer
+import me.animeheaven.android.data.runCatchingCancellable
 import me.animeheaven.android.ui.components.AhLoadingBox
 import me.animeheaven.android.ui.components.MobileBottomBar
+import me.animeheaven.android.ui.components.MobileNavigationRail
 import me.animeheaven.android.ui.components.TopTabDestination
 import me.animeheaven.android.ui.screens.bookmarks.BookmarksScreen
 import me.animeheaven.android.ui.screens.bookmarks.BookmarksViewModel
@@ -86,9 +94,11 @@ fun AppNavGraph(
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val isInPipMode by isInPipModeFlow.collectAsStateWithLifecycle()
+    val useNavigationRail = LocalConfiguration.current.screenWidthDp >= 600
     var resolvingRandom by remember { mutableStateOf(false) }
 
     val activeTopTab = when (currentRoute) {
@@ -109,37 +119,52 @@ fun AppNavGraph(
         }
     }
 
-    val openRandomAnime: () -> Unit = remember(navController, container) {
+    val openRandomAnime: () -> Unit = remember(navController, container, context) {
         {
             if (!resolvingRandom) {
                 resolvingRandom = true
                 scope.launch {
-                    runCatching { container.repository.getRandomAnimeId() }
-                        .onSuccess { randomId ->
-                            resolvingRandom = false
-                            navController.navigate(Routes.detail(randomId))
+                    try {
+                        runCatchingCancellable {
+                            val id = container.repository.getRandomAnimeId()
+                            check(id.isNotBlank())
+                            navController.navigate(Routes.detail(id))
+                        }.onFailure {
+                            Toast.makeText(context, "Couldn’t pick a random anime. Try again.", Toast.LENGTH_SHORT).show()
                         }
-                        .onFailure {
-                            resolvingRandom = false
-                        }
+                    } finally {
+                        resolvingRandom = false
+                    }
                 }
             }
         }
     }
 
     val openAnime: (String) -> Unit = remember(navController) {
-        { id -> navController.navigate(Routes.detail(id)) }
+        { id -> if (id.isNotBlank()) navController.navigate(Routes.detail(id)) }
     }
     val openSearch: () -> Unit = remember(navController) { { navController.navigate(Routes.SEARCH) } }
     val openPopular: () -> Unit = remember(navigateTopTab) { { navigateTopTab(Routes.POPULAR) } }
     val openSeasonal: (String, String) -> Unit = remember(navController) {
-        { path, label -> navController.navigate(Routes.seasonal(path, label)) }
+        { path, label -> if (path.isNotBlank()) navController.navigate(Routes.seasonal(path, label.ifBlank { "Season" })) }
     }
     val openSettings: () -> Unit = remember(navController) { { navController.navigate(Routes.SETTINGS) } }
     val popBack: () -> Unit = remember(navController) { { navController.popBackStack() } }
+    val selectTopTab: (TopTabDestination) -> Unit = { tab ->
+        navigateTopTab(when (tab) {
+            TopTabDestination.HOME -> Routes.HOME
+            TopTabDestination.NEW -> Routes.NEW
+            TopTabDestination.POPULAR -> Routes.POPULAR
+            TopTabDestination.BOOKMARKS -> Routes.BOOKMARKS
+        })
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (useNavigationRail && activeTopTab != null && !isInPipMode) {
+                MobileNavigationRail(activeTopTab, selectTopTab)
+            }
+            Column(modifier = Modifier.weight(1f)) {
             NavHost(
                 navController = navController,
                 startDestination = Routes.HOME,
@@ -165,6 +190,7 @@ fun AppNavGraph(
                         viewModel = vm,
                         onOpenAnime = openAnime,
                         onPlayContinueItem = { cw ->
+                            if (cw.targetEpisodeKey.isNotBlank())
                             navController.navigate(
                                 Routes.player(
                                     episodeKey = cw.targetEpisodeKey,
@@ -236,8 +262,10 @@ fun AppNavGraph(
                     )
                     BookmarksScreen(
                         viewModel = vm,
+                        onOpenHome = { navigateTopTab(Routes.HOME) },
                         onOpenAnime = openAnime,
                         onPlayContinueItem = { cw ->
+                            if (cw.targetEpisodeKey.isNotBlank())
                             navController.navigate(
                                 Routes.player(
                                     episodeKey = cw.targetEpisodeKey,
@@ -261,8 +289,8 @@ fun AppNavGraph(
                         navArgument("label") { type = NavType.StringType }
                     )
                 ) { entry ->
-                    val path = Uri.decode(entry.arguments?.getString("path").orEmpty())
-                    val label = Uri.decode(entry.arguments?.getString("label").orEmpty())
+                    val path = entry.arguments?.getString("path").orEmpty()
+                    val label = entry.arguments?.getString("label").orEmpty()
                     val vm: CatalogViewModel = viewModel(
                         factory = simpleFactory {
                             CatalogViewModel(
@@ -290,7 +318,7 @@ fun AppNavGraph(
                     route = Routes.TAG,
                     arguments = listOf(navArgument("tag") { type = NavType.StringType })
                 ) { entry ->
-                    val tag = Uri.decode(entry.arguments?.getString("tag").orEmpty())
+                    val tag = entry.arguments?.getString("tag").orEmpty()
                     val vm: CatalogViewModel = viewModel(
                         factory = simpleFactory {
                             CatalogViewModel(
@@ -334,7 +362,7 @@ fun AppNavGraph(
                     route = Routes.DETAIL,
                     arguments = listOf(navArgument("animeId") { type = NavType.StringType })
                 ) { entry ->
-                    val animeId = Uri.decode(entry.arguments?.getString("animeId").orEmpty())
+                    val animeId = entry.arguments?.getString("animeId").orEmpty()
                     val vm: DetailViewModel = viewModel(
                         factory = simpleFactory {
                             DetailViewModel(container.repository, animeId, container.preloader)
@@ -344,9 +372,9 @@ fun AppNavGraph(
                         viewModel = vm,
                         onBack = popBack,
                         onPlayEpisode = { key, id, title, cover ->
-                            navController.navigate(Routes.player(key, id, title, cover))
+                            if (key.isNotBlank()) navController.navigate(Routes.player(key, id, title, cover))
                         },
-                        onOpenTag = { tag -> navController.navigate(Routes.tag(tag)) },
+                        onOpenTag = { tag -> if (tag.isNotBlank()) navController.navigate(Routes.tag(tag)) },
                         onOpenAnime = openAnime
                     )
                 }
@@ -360,11 +388,11 @@ fun AppNavGraph(
                         navArgument("coverUrl") { type = NavType.StringType }
                     )
                 ) { entry ->
-                    val epKey = Uri.decode(entry.arguments?.getString("episodeKey").orEmpty())
-                    val animeId = Uri.decode(entry.arguments?.getString("animeId").orEmpty())
+                    val epKey = entry.arguments?.getString("episodeKey").orEmpty()
+                    val animeId = entry.arguments?.getString("animeId").orEmpty()
                         .let { if (it == "_") "" else it }
-                    val animeTitle = Uri.decode(entry.arguments?.getString("animeTitle").orEmpty())
-                    val coverUrl = Uri.decode(entry.arguments?.getString("coverUrl").orEmpty())
+                    val animeTitle = entry.arguments?.getString("animeTitle").orEmpty()
+                    val coverUrl = entry.arguments?.getString("coverUrl").orEmpty()
                         .let { if (it == "_") "" else it }
 
                     val vm: PlayerViewModel = viewModel(
@@ -377,6 +405,7 @@ fun AppNavGraph(
                                 initialAnimeId = animeId,
                                 initialAnimeTitle = animeTitle,
                                 initialCoverUrl = coverUrl,
+                                progressScope = container.appScope,
                                 videoCacheManager = container.videoCacheManager,
                                 preloader = container.preloader
                             )
@@ -403,29 +432,21 @@ fun AppNavGraph(
                 }
             }
 
-            if (activeTopTab != null && !isInPipMode) {
-                MobileBottomBar(
-                    activeTab = activeTopTab,
-                    onSelectTab = { tab ->
-                        val route = when (tab) {
-                            TopTabDestination.HOME -> Routes.HOME
-                            TopTabDestination.NEW -> Routes.NEW
-                            TopTabDestination.POPULAR -> Routes.POPULAR
-                            TopTabDestination.BOOKMARKS -> Routes.BOOKMARKS
-                        }
-                        navigateTopTab(route)
-                    }
-                )
+                if (!useNavigationRail && activeTopTab != null && !isInPipMode) {
+                    MobileBottomBar(activeTopTab, selectTopTab)
+                }
             }
         }
 
         if (resolvingRandom) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xAA000000))
+            Dialog(
+                onDismissRequest = {},
+                properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false,
+                    usePlatformDefaultWidth = false)
             ) {
-                AhLoadingBox(message = "Picking a random anime...")
+                Box(Modifier.fillMaxSize().background(Color(0xAA000000))) {
+                    AhLoadingBox(message = "Picking a random anime...")
+                }
             }
         }
     }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -362,11 +363,11 @@ fun SearchScreen(
                             vertical = 12.dp
                         )
                     ) {
-                        items(
+                        itemsIndexed(
                             items = state.fastResults,
-                            key = { it.animeId },
-                            contentType = { "fast_search_row" }
-                        ) { item ->
+                            key = { index, it -> "fast_${index}_${it.animeId}" },
+                            contentType = { _, _ -> "fast_search_row" }
+                        ) { _, item ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

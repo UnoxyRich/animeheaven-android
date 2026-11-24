@@ -55,6 +55,7 @@ import me.animeheaven.android.ui.theme.LocalAhPalette
 @Composable
 fun BookmarksScreen(
     viewModel: BookmarksViewModel,
+    onOpenHome: () -> Unit,
     onOpenAnime: (String) -> Unit,
     onPlayContinueItem: (ContinueWatchingItem) -> Unit,
     onOpenSearch: () -> Unit,
@@ -69,11 +70,10 @@ fun BookmarksScreen(
     Column(modifier = modifier.fillMaxSize()) {
         MobileTopBar(
             seasonLabel = state.seasonLabel,
-            onLogoClick = {},
+            onLogoClick = onOpenHome,
             onSeasonalClick = {
-                val path = state.seasonPath ?: "2025fall.php"
                 val label = state.seasonLabel ?: "Season"
-                onOpenSeasonal(path, label)
+                state.seasonPath?.takeIf { it.isNotBlank() }?.let { onOpenSeasonal(it, label) }
             },
             onSearchClick = onOpenSearch,
             onRandomClick = onOpenRandom,

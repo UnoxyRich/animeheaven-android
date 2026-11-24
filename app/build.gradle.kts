@@ -5,6 +5,13 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val releaseCredentials = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+    .associateWith { providers.gradleProperty(it).orElse(providers.environmentVariable(it)).orNull }
+val hasReleaseCredentials = releaseCredentials.values.all { !it.isNullOrBlank() }
+require(hasReleaseCredentials || releaseCredentials.values.all { it.isNullOrBlank() }) {
+    "Configure all four release signing properties, or leave all four unset for an unsigned release."
+}
+
 android {
     namespace = "me.animeheaven.android"
     compileSdk = 35
@@ -13,22 +20,38 @@ android {
         applicationId = "me.animeheaven.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = providers.gradleProperty("versionCode").map(String::toInt).getOrElse(1)
+        versionName = providers.gradleProperty("versionName").getOrElse("1.0.0")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en")
+    }
+
+    if (hasReleaseCredentials) {
+        signingConfigs.create("release") {
+            storeFile = rootProject.file(releaseCredentials.getValue("KEYSTORE_FILE")!!)
+            storePassword = releaseCredentials.getValue("KEYSTORE_PASSWORD")
+            keyAlias = releaseCredentials.getValue("KEY_ALIAS")
+            keyPassword = releaseCredentials.getValue("KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+    }
+
+    buildTypes.create("sideload") {
+        initWith(buildTypes.getByName("release"))
+        signingConfig = signingConfigs.getByName("debug")
+        applicationIdSuffix = ".sideload"
+        matchingFallbacks += "release"
     }
 
     packaging {
@@ -61,6 +84,10 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 composeCompiler {

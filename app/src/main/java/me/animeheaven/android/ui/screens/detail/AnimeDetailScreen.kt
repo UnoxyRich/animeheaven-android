@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -621,11 +622,11 @@ private fun RelatedOrSimilarRow(
             contentPadding = PaddingValues(horizontal = AhHorizontalPadding),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(
+            itemsIndexed(
                 items = shows,
-                key = { it.id },
-                contentType = { "show_card" }
-            ) { show ->
+                key = { index, it -> "anime_${index}_${it.id}" },
+                contentType = { _, _ -> "show_card" }
+            ) { _, show ->
                 SimilarShowCard(
                     item = show,
                     onClick = { onOpenAnime(show.id) },
