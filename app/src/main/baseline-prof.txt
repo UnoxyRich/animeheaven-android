@@ -1,0 +1,49 @@
+# Startup & DI
+HSPLme/animeheaven/android/AnimeHeavenApplication;->**(**)**
+HSPLme/animeheaven/android/MainActivity;->**(**)**
+HSPLme/animeheaven/android/AppContainer;->**(**)**
+HSPLme/animeheaven/android/data/local/AppSettingsStore;->**(**)**
+HSPLme/animeheaven/android/data/local/AppDatabase**;->**(**)**
+HSPLme/animeheaven/android/data/local/*Dao_Impl**;->**(**)**
+
+# Fast Cache Hydration, Parsing & Network Hot Paths
+HSPLme/animeheaven/android/data/cache/CacheSnapshotCodec**;->**(**)**
+HSPLme/animeheaven/android/data/cache/LruCacheMap;->**(**)**
+HSPLme/animeheaven/android/data/cache/AnimePreloader;->**(**)**
+HSPLme/animeheaven/android/data/cache/VideoCacheManager;->**(**)**
+HSPLme/animeheaven/android/data/cache/MirrorHealthTracker;->**(**)**
+HSPLme/animeheaven/android/data/cache/StreamingChunkBooster;->**(**)**
+HSPLme/animeheaven/android/data/parser/AnimeHeavenParser;->**(**)**
+HSPLme/animeheaven/android/data/repository/AnimeHeavenRepository;->**(**)**
+HSPLme/animeheaven/android/data/repository/RequestCoalescer;->**(**)**
+HSPLme/animeheaven/android/data/network/AnimeHeavenClient**;->**(**)**
+HSPLme/animeheaven/android/data/network/CachedDns;->**(**)**
+HSPLme/animeheaven/android/data/network/SkipTimesClient;->**(**)**
+
+# Compose Mobile UI & Hot Screens
+HSPLme/animeheaven/android/ui/theme/ThemeKt;->**(**)**
+HSPLme/animeheaven/android/ui/navigation/AppNavGraphKt;->**(**)**
+HSPLme/animeheaven/android/ui/components/AnimeCardsKt;->**(**)**
+HSPLme/animeheaven/android/ui/components/MobileChromeKt;->**(**)**
+HSPLme/animeheaven/android/ui/screens/home/HomeScreenKt;->**(**)**
+HSPLme/animeheaven/android/ui/screens/home/HomeViewModel;->**(**)**
+HSPLme/animeheaven/android/ui/screens/detail/AnimeDetailScreenKt;->**(**)**
+HSPLme/animeheaven/android/ui/screens/player/PlayerScreenKt;->**(**)**
+HSPLme/animeheaven/android/ui/screens/player/PlayerViewModel;->**(**)**
+
+# Targeted AndroidX Compose / Media3 / OkHttp / Coil Core Hot Classes
+HSPLandroidx/compose/foundation/lazy/LazyList**;->**(**)**
+HSPLandroidx/compose/foundation/pager/Pager**;->**(**)**
+HSPLandroidx/compose/ui/platform/AndroidComposeView;->**(**)**
+HSPLandroidx/media3/exoplayer/ExoPlayerImpl**;->**(**)**
+HSPLandroidx/media3/exoplayer/DefaultLoadControl;->**(**)**
+HSPLandroidx/media3/exoplayer/source/ProgressiveMediaPeriod**;->**(**)**
+HSPLandroidx/media3/extractor/mp4/Mp4Extractor;->**(**)**
+HSPLandroidx/media3/datasource/cache/SimpleCache;->**(**)**
+HSPLandroidx/media3/datasource/cache/CacheDataSource;->**(**)**
+HSPLandroidx/media3/datasource/cache/CacheDataSink;->**(**)**
+HSPLokhttp3/internal/connection/RealCall**;->**(**)**
+HSPLokhttp3/internal/http2/Http2Connection**;->**(**)**
+HSPLcoil3/RealImageLoader**;->**(**)**
+HSPLcoil3/memory/RealMemoryCache;->**(**)**
+HSPLcoil3/disk/RealDiskCache;->**(**)**
