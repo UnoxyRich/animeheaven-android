@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,9 +58,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.allowRgb565
 import coil3.size.Precision
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.delay
 import me.animeheaven.android.data.cache.ImageTargetSize
 import me.animeheaven.android.data.model.AnimeCard
@@ -108,6 +112,14 @@ fun <T> List<T>.toGridRows(columns: Int, keyOf: (T) -> String): List<GridRow<T>>
     return rows
 }
 
+object AhImageLoadTracker {
+    val loadedCount = AtomicInteger(0)
+}
+
+private val ON_IMAGE_LOAD_SUCCESS: (AsyncImagePainter.State.Success) -> Unit = {
+    AhImageLoadTracker.loadedCount.incrementAndGet()
+}
+
 @Composable
 fun AhCoverImage(
     url: String,
@@ -116,6 +128,7 @@ fun AhCoverImage(
     targetSize: ImageTargetSize = ImageTargetSize.STANDARD_CARD
 ) {
     val context = LocalContext.current
+    val palette = LocalAhPalette.current
     val request = remember(url, targetSize) {
         ImageRequest.Builder(context)
             .data(url)
@@ -129,7 +142,8 @@ fun AhCoverImage(
         contentDescription = contentDescription,
         contentScale = ContentScale.Crop,
         filterQuality = FilterQuality.Medium,
-        modifier = modifier
+        onSuccess = ON_IMAGE_LOAD_SUCCESS,
+        modifier = modifier.background(palette.surfaceElevated)
     )
 }
 
@@ -166,20 +180,20 @@ fun HeroBannerPager(
     ) {
         HorizontalPager(
             state = pagerState,
-            contentPadding = PaddingValues(horizontal = AhHorizontalPadding),
             pageSpacing = 12.dp,
             beyondViewportPageCount = 1,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(352.dp)
+                .height(332.dp)
         ) { page ->
             val banner = banners[page]
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(horizontal = AhHorizontalPadding)
                     .clip(AhShape16)
                     .background(palette.surface)
-                    .border(1.dp, Color(0x33FFFFFF), AhShape16)
+                    .border(1.dp, palette.borderSubtle, AhShape16)
                     .clickable { onBannerClick(banner.animeId) }
             ) {
                 AhCoverImage(
@@ -207,6 +221,7 @@ fun HeroBannerPager(
                         text = "#${page + 1} FEATURED",
                         color = Color.White,
                         fontSize = 10.sp,
+                        lineHeight = 12.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.7.sp
                     )
@@ -229,12 +244,14 @@ fun HeroBannerPager(
                             text = "A",
                             color = palette.crimson,
                             fontSize = 15.sp,
+                            lineHeight = 18.sp,
                             fontWeight = FontWeight.Black
                         )
                         Text(
                             text = "S E R I E S",
                             color = Color(0xFFDCDCDC),
                             fontSize = 10.sp,
+                            lineHeight = 12.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 2.2.sp
                         )
@@ -255,6 +272,7 @@ fun HeroBannerPager(
                         text = "Trending Now  •  Subbed Anime  •  HD",
                         color = Color(0xFFD4D4D4),
                         fontSize = 12.sp,
+                        lineHeight = 16.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1
                     )
@@ -287,6 +305,7 @@ fun HeroBannerPager(
                                 text = "Play",
                                 color = Color.Black,
                                 fontSize = 15.sp,
+                                lineHeight = 18.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
@@ -294,6 +313,13 @@ fun HeroBannerPager(
                         Row(
                             modifier = Modifier
                                 .weight(1f)
+                                .then(
+                                    if (page == pagerState.currentPage) {
+                                        Modifier.testTag("hero_details_btn")
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                                 .clip(AhShape6)
                                 .background(Color(0xB8303030))
                                 .border(1.dp, Color(0x2EFFFFFF), AhShape6)
@@ -303,7 +329,7 @@ fun HeroBannerPager(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = AhIcons.BookmarkBorder,
+                                imageVector = Icons.Outlined.Info,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
@@ -313,6 +339,7 @@ fun HeroBannerPager(
                                 text = "Details",
                                 color = Color.White,
                                 fontSize = 15.sp,
+                                lineHeight = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -384,7 +411,7 @@ fun ContinueWatchingRow(
                         .width(196.dp)
                         .clip(AhShape10)
                         .background(palette.surface)
-                        .border(1.dp, Color(0x1CFFFFFF), AhShape10)
+                        .border(1.dp, palette.borderSubtle, AhShape10)
                         .clickable { onPlayItem(item) }
                 ) {
                     Box(
@@ -438,6 +465,7 @@ fun ContinueWatchingRow(
                                 },
                                 color = Color.White,
                                 fontSize = 10.sp,
+                                lineHeight = 12.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
@@ -467,6 +495,7 @@ fun ContinueWatchingRow(
                             text = item.animeTitle,
                             color = palette.textPrimary,
                             fontSize = 13.sp,
+                            lineHeight = 17.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -480,6 +509,7 @@ fun ContinueWatchingRow(
                             },
                             color = palette.textMuted,
                             fontSize = 11.sp,
+                            lineHeight = 14.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -535,6 +565,7 @@ fun PopularHorizontalStrip(
                         text = "TOP 10",
                         color = Color.White,
                         fontSize = 10.sp,
+                        lineHeight = 12.sp,
                         fontWeight = FontWeight.Black
                     )
                 }
@@ -598,7 +629,7 @@ fun PopularHorizontalStrip(
                             .size(width = 114.dp, height = 164.dp)
                             .clip(AhShape8)
                             .background(palette.surfaceElevated)
-                            .border(1.dp, Color(0x1EFFFFFF), AhShape8)
+                            .border(1.dp, palette.borderSubtle, AhShape8)
                             .clickable { onAnimeClick(anime.id) }
                     ) {
                         AhCoverImage(
@@ -644,6 +675,7 @@ fun PopularHorizontalStrip(
                                     text = anime.title,
                                     color = Color.White,
                                     fontSize = 11.sp,
+                                    lineHeight = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -726,12 +758,16 @@ private fun CircleToggleButton(
         modifier = Modifier
             .size(32.dp)
             .clip(CircleShape)
-            .background(if (selected) Color.White else palette.surfaceElevated)
-            .border(1.dp, if (selected) Color.White else Color(0x30FFFFFF), CircleShape)
+            .background(if (selected) palette.toggleSelectedContainer else palette.surfaceElevated)
+            .border(
+                1.dp,
+                if (selected) palette.toggleSelectedContainer else palette.borderSubtle,
+                CircleShape
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        icon(if (selected) Color.Black else palette.textSecondary)
+        icon(if (selected) palette.toggleSelectedContent else palette.textSecondary)
     }
 }
 
@@ -750,7 +786,7 @@ fun ScheduleListCard(
             .padding(horizontal = AhHorizontalPadding, vertical = 5.dp)
             .clip(AhShape10)
             .background(palette.surface)
-            .border(1.dp, Color(0x16FFFFFF), AhShape10)
+            .border(1.dp, palette.borderSubtle, AhShape10)
             .clickable(onClick = onClick)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -786,6 +822,7 @@ fun ScheduleListCard(
                         text = badgeText,
                         color = Color.White,
                         fontSize = 10.sp,
+                        lineHeight = 12.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                 }
@@ -800,6 +837,7 @@ fun ScheduleListCard(
                 text = item.title,
                 color = palette.textPrimary,
                 fontSize = 15.sp,
+                lineHeight = 19.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -809,6 +847,7 @@ fun ScheduleListCard(
                     text = item.japaneseTitle,
                     color = palette.textMuted,
                     fontSize = 12.sp,
+                    lineHeight = 16.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -823,14 +862,14 @@ fun ScheduleListCard(
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(if (isBookmarked) palette.crimson else palette.surfaceElevated)
-                .border(1.dp, if (isBookmarked) palette.crimson else Color(0x30FFFFFF), CircleShape)
+                .border(1.dp, if (isBookmarked) palette.crimson else palette.borderSubtle, CircleShape)
                 .clickable(onClick = onToggleBookmark),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (isBookmarked) AhIcons.Bookmark else AhIcons.BookmarkBorder,
                 contentDescription = if (isBookmarked) "Remove Bookmark" else "Bookmark",
-                tint = Color.White,
+                tint = if (isBookmarked) Color.White else palette.textPrimary,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -850,7 +889,7 @@ fun ScheduleGridCard(
         modifier = modifier
             .clip(AhShape10)
             .background(palette.surface)
-            .border(1.dp, Color(0x16FFFFFF), AhShape10)
+            .border(1.dp, palette.borderSubtle, AhShape10)
             .clickable(onClick = onClick)
     ) {
         Box(
@@ -887,6 +926,7 @@ fun ScheduleGridCard(
                         text = badgeText,
                         color = Color.White,
                         fontSize = 10.sp,
+                        lineHeight = 12.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                 }
@@ -924,6 +964,7 @@ fun ScheduleGridCard(
                 text = item.title,
                 color = palette.textPrimary,
                 fontSize = 13.sp,
+                lineHeight = 17.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -947,7 +988,7 @@ fun SimilarShowCard(
         modifier = modifier
             .clip(AhShape8)
             .background(palette.surface)
-            .border(1.dp, Color(0x16FFFFFF), AhShape8)
+            .border(1.dp, palette.borderSubtle, AhShape8)
             .clickable(onClick = onClick)
     ) {
         AhCoverImage(
@@ -962,6 +1003,7 @@ fun SimilarShowCard(
             text = item.title,
             color = palette.textPrimary,
             fontSize = 12.sp,
+            lineHeight = 15.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -1001,6 +1043,7 @@ private fun RankOrTimerBadge(item: AnimeCard) {
                     text = arrow,
                     color = badgeColor,
                     fontSize = 9.sp,
+                    lineHeight = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -1008,6 +1051,7 @@ private fun RankOrTimerBadge(item: AnimeCard) {
                 text = item.rankDelta.orEmpty(),
                 color = palette.textSecondary,
                 fontSize = 11.sp,
+                lineHeight = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -1016,6 +1060,7 @@ private fun RankOrTimerBadge(item: AnimeCard) {
             text = item.timerOrStatus,
             color = palette.positiveGreen,
             fontSize = 11.sp,
+            lineHeight = 14.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -1077,13 +1122,14 @@ fun AhErrorBox(
                 text = errorMessage,
                 color = palette.textSecondary,
                 fontSize = 13.sp,
+                lineHeight = 18.sp,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier
                     .clip(AhShape6)
-                    .background(Color.White)
+                    .background(palette.primaryActionContainer)
                     .clickable(onClick = onRetry)
                     .padding(horizontal = 20.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1092,12 +1138,12 @@ fun AhErrorBox(
                 Icon(
                     imageVector = Icons.Rounded.Refresh,
                     contentDescription = null,
-                    tint = Color.Black,
+                    tint = palette.onPrimaryActionContainer,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
                     text = "Try Again",
-                    color = Color.Black,
+                    color = palette.onPrimaryActionContainer,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold
                 )

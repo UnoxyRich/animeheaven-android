@@ -26,6 +26,7 @@ data class AhThemePalette(
     val themeId: AhThemeId,
     val background: Color,
     val backgroundBrush: Brush?,
+    val swatchBrush: Brush?,
     val surface: Color,
     val surfaceElevated: Color,
     val surfacePressed: Color,
@@ -36,6 +37,12 @@ data class AhThemePalette(
     val textMuted: Color,
     val borderSubtle: Color,
     val positiveGreen: Color,
+    val primaryActionContainer: Color,
+    val onPrimaryActionContainer: Color,
+    val toggleSelectedContainer: Color,
+    val toggleSelectedContent: Color,
+    val chipContainer: Color,
+    val chipBorder: Color,
     val isLight: Boolean
 )
 
@@ -88,6 +95,11 @@ private fun buildPaletteFor(themeId: AhThemeId): AhThemePalette {
             backgroundBrush = Brush.verticalGradient(
                 colors = listOf(Color(0xFF1E0A0D), Color(0xFF0B0B0B), Color(0xFF0B0B0B))
             ),
+            swatchBrush = Brush.linearGradient(
+                colors = listOf(Color(0xFF2E1014), Color(0xFF0B0B0B)),
+                start = Offset.Zero,
+                end = Offset.Infinite
+            ),
             surface = Color(0xFF141414),
             surfaceElevated = Color(0xFF1F1F1F),
             surfacePressed = Color(0xFF2B2B2B),
@@ -98,6 +110,12 @@ private fun buildPaletteFor(themeId: AhThemeId): AhThemePalette {
             textMuted = Color(0xFF8C8C8C),
             borderSubtle = Color(0xFF2A2A2A),
             positiveGreen = green,
+            primaryActionContainer = Color.White,
+            onPrimaryActionContainer = Color.Black,
+            toggleSelectedContainer = Color.White,
+            toggleSelectedContent = Color.Black,
+            chipContainer = Color(0x26FFFFFF),
+            chipBorder = Color(0x33FFFFFF),
             isLight = false
         )
         AhThemeId.DARK_INDIGO -> gradientDarkPalette(
@@ -122,6 +140,7 @@ private fun buildPaletteFor(themeId: AhThemeId): AhThemePalette {
             themeId = themeId,
             background = Color(0xFFFFFFFF),
             backgroundBrush = null,
+            swatchBrush = null,
             surface = Color(0xFFF3F3F8),
             surfaceElevated = Color(0xFFE7E7EE),
             surfacePressed = Color(0xFFDCDCE6),
@@ -132,6 +151,12 @@ private fun buildPaletteFor(themeId: AhThemeId): AhThemePalette {
             textMuted = Color(0xFF666666),
             borderSubtle = Color(0xFFD0D0DC),
             positiveGreen = Color(0xFF158A4A),
+            primaryActionContainer = Color(0xFF1A1A1A),
+            onPrimaryActionContainer = Color.White,
+            toggleSelectedContainer = Color(0xFF1A1A1A),
+            toggleSelectedContent = Color.White,
+            chipContainer = Color(0xFFE7E7EE),
+            chipBorder = Color(0xFFD0D0DC),
             isLight = true
         )
     }
@@ -144,26 +169,36 @@ private fun gradientDarkPalette(
     crimson: Color,
     crimsonDark: Color,
     green: Color
-): AhThemePalette = AhThemePalette(
-    themeId = themeId,
-    background = end,
-    backgroundBrush = Brush.linearGradient(
+): AhThemePalette {
+    val gradient = Brush.linearGradient(
         colors = listOf(start, end),
         start = Offset.Zero,
-        end = Offset(1080f, 900f)
-    ),
-    surface = Color(0xAA0A0A0A),
-    surfaceElevated = Color(0xCC141414),
-    surfacePressed = Color(0xE6202020),
-    crimson = crimson,
-    crimsonDark = crimsonDark,
-    textPrimary = Color(0xFFFFFFFF),
-    textSecondary = Color(0xFFCFCFCF),
-    textMuted = Color(0xFF9E9E9E),
-    borderSubtle = Color(0x33FFFFFF),
-    positiveGreen = green,
-    isLight = false
-)
+        end = Offset.Infinite
+    )
+    return AhThemePalette(
+        themeId = themeId,
+        background = end,
+        backgroundBrush = gradient,
+        swatchBrush = gradient,
+        surface = Color(0xAA0A0A0A),
+        surfaceElevated = Color(0xCC141414),
+        surfacePressed = Color(0xE6202020),
+        crimson = crimson,
+        crimsonDark = crimsonDark,
+        textPrimary = Color(0xFFFFFFFF),
+        textSecondary = Color(0xFFCFCFCF),
+        textMuted = Color(0xFF9E9E9E),
+        borderSubtle = Color(0x33FFFFFF),
+        positiveGreen = green,
+        primaryActionContainer = Color.White,
+        onPrimaryActionContainer = Color.Black,
+        toggleSelectedContainer = Color.White,
+        toggleSelectedContent = Color.Black,
+        chipContainer = Color(0x26FFFFFF),
+        chipBorder = Color(0x33FFFFFF),
+        isLight = false
+    )
+}
 
 private val AhMobileTypography = Typography(
     headlineLarge = TextStyle(

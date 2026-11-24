@@ -1,5 +1,6 @@
 package me.animeheaven.android.ui.screens.detail
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,14 +14,15 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
@@ -35,6 +37,8 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,11 +48,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.animeheaven.android.data.cache.ImageTargetSize
 import me.animeheaven.android.data.local.WatchProgressEntity
@@ -66,6 +72,7 @@ import me.animeheaven.android.ui.components.AhShape6
 import me.animeheaven.android.ui.components.AhShape8
 import me.animeheaven.android.ui.components.SimilarShowCard
 import me.animeheaven.android.ui.components.toGridRows
+import me.animeheaven.android.ui.components.topSystemSafePadding
 import me.animeheaven.android.ui.theme.LocalAhPalette
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -96,7 +103,7 @@ fun AnimeDetailScreen(
             }
             val bannerScrim = remember(palette.background) {
                 Brush.verticalGradient(
-                    0.0f to Color(0x88000000),
+                    0.0f to Color(0x99000000),
                     0.45f to Color(0x33000000),
                     1.0f to palette.background
                 )
@@ -105,11 +112,22 @@ fun AnimeDetailScreen(
             val listState = rememberLazyListState(
                 prefetchStrategy = remember { LazyListPrefetchStrategy(nestedPrefetchItemCount = 4) }
             )
+            val isBannerVisible by remember {
+                derivedStateOf { listState.firstVisibleItemIndex == 0 }
+            }
+            val view = LocalView.current
+            val activity = LocalActivity.current
+            DisposableEffect(activity, view, palette.isLight, isBannerVisible) {
+                val controller = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
+                controller?.isAppearanceLightStatusBars = palette.isLight && !isBannerVisible
+                onDispose {
+                    controller?.isAppearanceLightStatusBars = palette.isLight
+                }
+            }
+            val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
             BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .navigationBarsPadding()
+                modifier = Modifier.fillMaxSize()
             ) {
                 val epColumns = when {
                     maxWidth >= 840.dp -> 8
@@ -123,7 +141,7 @@ fun AnimeDetailScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 32.dp)
+                    contentPadding = PaddingValues(bottom = navBarBottom + 32.dp)
                 ) {
                     // Full-Bleed Netflix Mobile Hero Backdrop
                     item(key = "banner", contentType = "detail_banner") {
@@ -147,7 +165,7 @@ fun AnimeDetailScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .statusBarsPadding()
+                                    .topSystemSafePadding()
                                     .padding(horizontal = AhHorizontalPadding, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -188,12 +206,14 @@ fun AnimeDetailScreen(
                                     text = "A",
                                     color = palette.crimson,
                                     fontSize = 15.sp,
+                                    lineHeight = 18.sp,
                                     fontWeight = FontWeight.Black
                                 )
                                 Text(
                                     text = "S E R I E S",
                                     color = palette.textSecondary,
                                     fontSize = 10.sp,
+                                    lineHeight = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 2.2.sp
                                 )
@@ -212,6 +232,7 @@ fun AnimeDetailScreen(
                                     text = detail.japaneseTitle,
                                     color = palette.textMuted,
                                     fontSize = 13.sp,
+                                    lineHeight = 18.sp,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -227,6 +248,7 @@ fun AnimeDetailScreen(
                                         text = "Score ${detail.score}",
                                         color = palette.positiveGreen,
                                         fontSize = 13.sp,
+                                        lineHeight = 17.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -234,38 +256,41 @@ fun AnimeDetailScreen(
                                     Text(
                                         text = detail.year,
                                         color = palette.textSecondary,
-                                        fontSize = 13.sp
+                                        fontSize = 13.sp,
+                                        lineHeight = 17.sp
                                     )
                                 }
                                 if (detail.episodesLabel.isNotBlank()) {
                                     Text(
                                         text = "${detail.episodesLabel} Episodes",
                                         color = palette.textSecondary,
-                                        fontSize = 13.sp
+                                        fontSize = 13.sp,
+                                        lineHeight = 17.sp
                                     )
                                 }
                                 Box(
                                     modifier = Modifier
-                                        .border(1.dp, Color(0x70FFFFFF), AhShape4)
+                                        .border(1.dp, palette.textPrimary.copy(alpha = 0.45f), AhShape4)
                                         .padding(horizontal = 5.dp, vertical = 1.dp)
                                 ) {
                                     Text(
                                         text = "HD",
                                         color = palette.textPrimary,
                                         fontSize = 10.sp,
+                                        lineHeight = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
 
-                            // Primary Full-Width White Play Button
+                            // Primary Full-Width Play Button
                             val action = state.primaryAction
                             if (action != null) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(AhShape6)
-                                        .background(Color.White)
+                                        .background(palette.primaryActionContainer)
                                         .clickable {
                                             onPlayEpisode(
                                                 action.episodeKey,
@@ -281,20 +306,21 @@ fun AnimeDetailScreen(
                                     Icon(
                                         imageVector = Icons.Rounded.PlayArrow,
                                         contentDescription = null,
-                                        tint = Color.Black,
+                                        tint = palette.onPrimaryActionContainer,
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = action.buttonLabel,
-                                        color = Color.Black,
+                                        color = palette.onPrimaryActionContainer,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                 }
                             }
 
-                            // Secondary Full-Width Dark Matte My List Button
+                            // Secondary Full-Width My List Button
+                            val myListContentColor = if (state.isBookmarked) Color.White else palette.textPrimary
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -302,7 +328,7 @@ fun AnimeDetailScreen(
                                     .background(if (state.isBookmarked) palette.crimson else palette.surfaceElevated)
                                     .border(
                                         1.dp,
-                                        if (state.isBookmarked) palette.crimson else Color(0x28FFFFFF),
+                                        if (state.isBookmarked) palette.crimson else palette.borderSubtle,
                                         AhShape6
                                     )
                                     .clickable(onClick = viewModel::toggleBookmark)
@@ -313,13 +339,13 @@ fun AnimeDetailScreen(
                                 Icon(
                                     imageVector = if (state.isBookmarked) AhIcons.Bookmark else AhIcons.BookmarkBorder,
                                     contentDescription = if (state.isBookmarked) "In My List" else "My List",
-                                    tint = Color.White,
+                                    tint = myListContentColor,
                                     modifier = Modifier.size(19.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = if (state.isBookmarked) "In My List" else "Add to My List",
-                                    color = Color.White,
+                                    color = myListContentColor,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -350,6 +376,7 @@ fun AnimeDetailScreen(
                                             text = if (synopsisExpanded) "Show less" else "Read more",
                                             color = palette.textPrimary,
                                             fontSize = 12.sp,
+                                            lineHeight = 16.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Icon(
@@ -372,7 +399,7 @@ fun AnimeDetailScreen(
                                             modifier = Modifier
                                                 .clip(AhShape20)
                                                 .background(palette.surfaceElevated)
-                                                .border(1.dp, Color(0x28FFFFFF), AhShape20)
+                                                .border(1.dp, palette.borderSubtle, AhShape20)
                                                 .clickable { onOpenTag(tag) }
                                                 .padding(horizontal = 11.dp, vertical = 5.dp)
                                         ) {
@@ -380,6 +407,7 @@ fun AnimeDetailScreen(
                                                 text = tag,
                                                 color = palette.textSecondary,
                                                 fontSize = 12.sp,
+                                                lineHeight = 15.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         }
@@ -398,7 +426,7 @@ fun AnimeDetailScreen(
                                     .padding(top = 12.dp)
                                     .clip(AhShape10)
                                     .background(palette.surface)
-                                    .border(1.dp, Color(0x28FFFFFF), AhShape10)
+                                    .border(1.dp, palette.borderSubtle, AhShape10)
                                     .padding(vertical = 10.dp, horizontal = 14.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -406,6 +434,7 @@ fun AnimeDetailScreen(
                                     text = detail.countdownLabel,
                                     color = palette.positiveGreen,
                                     fontSize = 13.sp,
+                                    lineHeight = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -442,7 +471,7 @@ fun AnimeDetailScreen(
                                     modifier = Modifier
                                         .clip(AhShape20)
                                         .background(palette.surfaceElevated)
-                                        .border(1.dp, Color(0x2EFFFFFF), AhShape20)
+                                        .border(1.dp, palette.borderSubtle, AhShape20)
                                         .clickable(onClick = viewModel::toggleSortOrder)
                                         .padding(horizontal = 11.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -458,6 +487,7 @@ fun AnimeDetailScreen(
                                         text = if (state.sortOldestFirst) "Ep 1 First" else "Newest First",
                                         color = palette.textPrimary,
                                         fontSize = 12.sp,
+                                        lineHeight = 15.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
@@ -544,7 +574,7 @@ private fun EpisodeNetflixTile(
             .background(if (isWatched) palette.surface else palette.surfaceElevated)
             .border(
                 1.dp,
-                if (isWatched) palette.positiveGreen.copy(alpha = 0.45f) else Color(0x26FFFFFF),
+                if (isWatched) palette.positiveGreen.copy(alpha = 0.45f) else palette.borderSubtle,
                 AhShape8
             )
             .clickable(onClick = onClick)
@@ -560,6 +590,7 @@ private fun EpisodeNetflixTile(
                 text = if (isWatched) "WATCHED" else "EP",
                 color = if (isWatched) palette.positiveGreen else palette.textMuted,
                 fontSize = 9.sp,
+                lineHeight = 11.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
@@ -567,6 +598,7 @@ private fun EpisodeNetflixTile(
                 text = episode.numberLabel,
                 color = palette.textPrimary,
                 fontSize = if (episode.numberLabel.length >= 4) 17.sp else 21.sp,
+                lineHeight = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
@@ -574,6 +606,7 @@ private fun EpisodeNetflixTile(
                 text = episode.releaseAge.ifBlank { " " },
                 color = palette.textMuted,
                 fontSize = 10.sp,
+                lineHeight = 12.sp,
                 maxLines = 1,
                 textAlign = TextAlign.Center
             )
@@ -585,7 +618,7 @@ private fun EpisodeNetflixTile(
                     .fillMaxWidth()
                     .height(3.5.dp)
                     .align(Alignment.BottomCenter)
-                    .background(Color(0x44FFFFFF))
+                    .background(palette.textPrimary.copy(alpha = 0.16f))
             ) {
                 Box(
                     modifier = Modifier

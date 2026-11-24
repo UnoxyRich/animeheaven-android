@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
 import androidx.compose.foundation.lazy.items
@@ -55,6 +54,7 @@ import me.animeheaven.android.ui.components.ScheduleListCard
 import me.animeheaven.android.ui.components.SectionHeaderWithToggle
 import me.animeheaven.android.ui.components.SimilarShowCard
 import me.animeheaven.android.ui.components.toGridRows
+import me.animeheaven.android.ui.components.topSystemSafePadding
 import me.animeheaven.android.ui.theme.LocalAhPalette
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -94,7 +94,7 @@ fun CatalogScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(palette.surface)
-                    .statusBarsPadding()
+                    .topSystemSafePadding()
             ) {
                 Row(
                     modifier = Modifier

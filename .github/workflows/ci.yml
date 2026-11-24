@@ -89,9 +89,9 @@ jobs:
           path: |
             ~/.android/avd/animeheaven-phone.ini
             ~/.android/avd/animeheaven-phone.avd/config.ini
-          key: android-avd-phone-v1-${{ runner.os }}-35-x86_64
+          key: android-avd-phone-v2-${{ runner.os }}-35-x86_64
 
-      - name: Boot Pixel 6 Emulator (API 35) & capture walkthrough screenshots
+      - name: Boot Medium Phone Emulator (API 35) & capture walkthrough screenshots
         timeout-minutes: 14
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -101,7 +101,7 @@ jobs:
           arch: x86_64
           avd-name: animeheaven-phone
           force-avd-creation: false
-          profile: pixel_6
+          profile: medium_phone
           ram-size: 3072M
           disk-size: 4096M
           disable-animations: true

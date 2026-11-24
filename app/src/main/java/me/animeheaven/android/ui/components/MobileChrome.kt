@@ -8,14 +8,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.selection.selectable
@@ -50,6 +55,13 @@ val AhShape12: Shape = RoundedCornerShape(12.dp)
 val AhShape16: Shape = RoundedCornerShape(16.dp)
 val AhShape20: Shape = RoundedCornerShape(24.dp)
 
+@Composable
+fun Modifier.topSystemSafePadding(): Modifier = this.windowInsetsPadding(
+    WindowInsets.statusBars
+        .union(WindowInsets.displayCutout)
+        .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+)
+
 enum class TopTabDestination(
     val label: String,
     val icon: ImageVector
@@ -83,14 +95,20 @@ fun MobileTopBar(
     val topBrush = if (palette.isLight) {
         Brush.verticalGradient(listOf(palette.surface, palette.background))
     } else {
-        Brush.verticalGradient(listOf(Color(0xEE0B0B0B), Color(0xBB0B0B0B), Color.Transparent))
+        Brush.verticalGradient(
+            listOf(
+                palette.background.copy(alpha = 0.94f),
+                palette.background.copy(alpha = 0.72f),
+                Color.Transparent
+            )
+        )
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(topBrush)
-            .statusBarsPadding()
+            .topSystemSafePadding()
             .padding(bottom = if (showFilterPills) 8.dp else 4.dp)
     ) {
         Row(
@@ -103,6 +121,7 @@ fun MobileTopBar(
             // Netflix-style Red "A" Monogram + Context Title
             Row(
                 modifier = Modifier
+                    .weight(1f)
                     .clip(AhShape8)
                     .clickable(onClick = onLogoClick)
                     .padding(end = 6.dp),
@@ -113,6 +132,7 @@ fun MobileTopBar(
                     text = "A",
                     color = palette.crimson,
                     fontSize = 30.sp,
+                    lineHeight = 32.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-1).sp
                 )
@@ -120,26 +140,22 @@ fun MobileTopBar(
                     text = headerTitle,
                     color = palette.textPrimary,
                     fontSize = 20.sp,
+                    lineHeight = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
             // Frosted Search pill (keeps "Search" text accessible for UI tests & thumb ergonomics)
             Row(
                 modifier = Modifier
+                    .height(38.dp)
                     .clip(AhShape20)
-                    .background(if (palette.isLight) palette.surfaceElevated else Color(0x2BFFFFFF))
-                    .border(
-                        1.dp,
-                        if (palette.isLight) palette.borderSubtle else Color(0x2EFFFFFF),
-                        AhShape20
-                    )
+                    .background(palette.chipContainer)
+                    .border(1.dp, palette.chipBorder, AhShape20)
                     .clickable(onClick = onSearchClick)
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                    .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
@@ -153,6 +169,7 @@ fun MobileTopBar(
                     text = "Search",
                     color = palette.textPrimary,
                     fontSize = 13.sp,
+                    lineHeight = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -207,10 +224,10 @@ private fun NetflixFilterPill(
     Row(
         modifier = Modifier
             .clip(AhShape20)
-            .background(if (palette.isLight) palette.surfaceElevated else Color(0x1FFFFFFF))
+            .background(palette.chipContainer)
             .border(
                 width = 1.dp,
-                color = if (palette.isLight) palette.borderSubtle else Color(0x3DFFFFFF),
+                color = palette.chipBorder,
                 shape = AhShape20
             )
             .clickable(onClick = onClick)
@@ -230,6 +247,7 @@ private fun NetflixFilterPill(
             text = label,
             color = palette.textPrimary,
             fontSize = 12.sp,
+            lineHeight = 15.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -246,14 +264,10 @@ private fun TopBarIconButton(
     val palette = LocalAhPalette.current
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(38.dp)
             .clip(CircleShape)
-            .background(if (palette.isLight) palette.surfaceElevated else Color(0x24FFFFFF))
-            .border(
-                1.dp,
-                if (palette.isLight) palette.borderSubtle else Color(0x2EFFFFFF),
-                CircleShape
-            )
+            .background(palette.chipContainer)
+            .border(1.dp, palette.chipBorder, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -282,7 +296,11 @@ fun MobileBottomBar(
         modifier = modifier
             .fillMaxWidth()
             .background(if (palette.isLight) palette.surface else Color(0xF5121212))
-            .navigationBarsPadding()
+            .windowInsetsPadding(
+                WindowInsets.navigationBars
+                    .union(WindowInsets.displayCutout)
+                    .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+            )
     ) {
         Box(
             modifier = Modifier
@@ -319,6 +337,7 @@ fun MobileBottomBar(
                         text = tab.label,
                         color = if (selected) palette.textPrimary else palette.textMuted,
                         fontSize = 10.sp,
+                        lineHeight = 12.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1
                     )

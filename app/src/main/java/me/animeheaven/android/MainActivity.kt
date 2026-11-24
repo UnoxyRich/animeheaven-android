@@ -68,6 +68,24 @@ class MainActivity : ComponentActivity() {
             val palette = paletteFor(themeId)
 
             LaunchedEffect(palette.isLight) {
+                enableEdgeToEdge(
+                    statusBarStyle = if (palette.isLight) {
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    } else {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    },
+                    navigationBarStyle = if (palette.isLight) {
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    } else {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    }
+                )
                 val controller = WindowCompat.getInsetsController(window, window.decorView)
                 controller.isAppearanceLightStatusBars = palette.isLight
                 controller.isAppearanceLightNavigationBars = palette.isLight

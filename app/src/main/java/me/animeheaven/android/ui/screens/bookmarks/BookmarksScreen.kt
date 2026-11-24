@@ -43,7 +43,7 @@ import me.animeheaven.android.ui.components.AhCoverImage
 import me.animeheaven.android.ui.components.AhHorizontalPadding
 import me.animeheaven.android.ui.components.AhIcons
 import me.animeheaven.android.ui.components.AhShape10
-import me.animeheaven.android.ui.components.AhShape12
+import me.animeheaven.android.ui.components.AhShape6
 import me.animeheaven.android.ui.components.AhShape8
 import me.animeheaven.android.ui.components.ContinueWatchingRow
 import me.animeheaven.android.ui.components.MobileTopBar
@@ -99,135 +99,183 @@ fun BookmarksScreen(
                 state.bookmarks.toGridRows(gridColumns) { it.animeId }
             }
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 6.dp, bottom = 18.dp)
-            ) {
-                if (state.continueWatching.isNotEmpty()) {
-                    item(key = "continue_watching", contentType = "continue_watching") {
-                        ContinueWatchingRow(
-                            items = state.continueWatching,
-                            onPlayItem = onPlayContinueItem
+            if (state.bookmarks.isEmpty() && state.continueWatching.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = AhIcons.BookmarkBorder,
+                            contentDescription = null,
+                            tint = palette.textMuted,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Text(
+                            text = "No Bookmarks Yet",
+                            color = palette.textPrimary,
+                            fontSize = 18.sp,
+                            lineHeight = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Tap the bookmark icon on any anime to save it here.",
+                            color = palette.textSecondary,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
-
-                if (state.continueWatching.isNotEmpty()) {
-                    item(key = "bookmarks_header", contentType = "section_header") {
-                        SectionHeaderWithToggle(
-                            title = "Saved List",
-                            viewMode = null,
-                            onChangeViewMode = null
-                        )
-                    }
-                }
-
-                if (state.bookmarks.isEmpty()) {
-                    item(key = "empty", contentType = "empty") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = AhHorizontalPadding, vertical = 24.dp)
-                                .clip(AhShape12)
-                                .background(palette.surface)
-                                .border(1.dp, palette.borderSubtle, AhShape12)
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No bookmarks saved yet.\nTap the bookmark icon on any anime to save it here.",
-                                color = palette.textSecondary,
-                                fontSize = 14.sp,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 22.sp
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 6.dp, bottom = 18.dp)
+                ) {
+                    if (state.continueWatching.isNotEmpty()) {
+                        item(key = "continue_watching", contentType = "continue_watching") {
+                            ContinueWatchingRow(
+                                items = state.continueWatching,
+                                onPlayItem = onPlayContinueItem
+                            )
+                        }
+                        item(key = "bookmarks_header", contentType = "section_header") {
+                            SectionHeaderWithToggle(
+                                title = "Saved List",
+                                viewMode = null,
+                                onChangeViewMode = null
                             )
                         }
                     }
-                } else {
-                    items(
-                        items = bookmarkRows,
-                        key = { it.key },
-                        contentType = { "bookmark_grid_row" }
-                    ) { row ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = AhHorizontalPadding, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            row.items.forEach { bm ->
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(AhShape10)
-                                        .background(palette.surface)
-                                        .border(1.dp, palette.borderSubtle, AhShape10)
-                                        .clickable { onOpenAnime(bm.animeId) }
-                                        .padding(7.dp)
-                                ) {
-                                    Box(
+
+                    if (state.bookmarks.isEmpty()) {
+                        item(key = "empty", contentType = "empty") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 32.dp, vertical = 40.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = AhIcons.BookmarkBorder,
+                                    contentDescription = null,
+                                    tint = palette.textMuted,
+                                    modifier = Modifier.size(44.dp)
+                                )
+                                Text(
+                                    text = "No Bookmarks Yet",
+                                    color = palette.textPrimary,
+                                    fontSize = 18.sp,
+                                    lineHeight = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "Tap the bookmark icon on any anime to save it here.",
+                                    color = palette.textSecondary,
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        items(
+                            items = bookmarkRows,
+                            key = { it.key },
+                            contentType = { "bookmark_grid_row" }
+                        ) { row ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = AhHorizontalPadding, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                row.items.forEach { bm ->
+                                    Column(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .aspectRatio(16f / 9f)
-                                            .clip(AhShape8)
+                                            .weight(1f)
+                                            .clip(AhShape10)
+                                            .background(palette.surface)
+                                            .border(1.dp, palette.borderSubtle, AhShape10)
+                                            .clickable { onOpenAnime(bm.animeId) }
+                                            .padding(7.dp)
                                     ) {
-                                        AhCoverImage(
-                                            url = bm.coverUrl,
-                                            contentDescription = bm.title,
-                                            targetSize = ImageTargetSize.STANDARD_CARD,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        if (bm.lastEpisodeLabel.isNotBlank()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .aspectRatio(16f / 9f)
+                                                .clip(AhShape8)
+                                        ) {
+                                            AhCoverImage(
+                                                url = bm.coverUrl,
+                                                contentDescription = bm.title,
+                                                targetSize = ImageTargetSize.STANDARD_CARD,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            if (bm.lastEpisodeLabel.isNotBlank()) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopStart)
+                                                        .padding(5.dp)
+                                                        .clip(AhShape6)
+                                                        .background(palette.crimson)
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Ep ${bm.lastEpisodeLabel}",
+                                                        color = Color.White,
+                                                        fontSize = 11.sp,
+                                                        lineHeight = 14.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
                                             Box(
                                                 modifier = Modifier
-                                                    .align(Alignment.TopStart)
-                                                    .background(palette.crimson)
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(4.dp)
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xBB000000))
+                                                    .clickable { viewModel.removeBookmark(bm.animeId) },
+                                                contentAlignment = Alignment.Center
                                             ) {
-                                                Text(
-                                                    text = "Ep ${bm.lastEpisodeLabel}",
-                                                    color = Color.White,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold
+                                                Icon(
+                                                    imageVector = AhIcons.DeleteOutline,
+                                                    contentDescription = "Remove Bookmark",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
                                                 )
                                             }
                                         }
-                                        Box(
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = bm.title,
+                                            color = palette.textPrimary,
+                                            fontSize = 13.sp,
+                                            lineHeight = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = TextAlign.Center,
                                             modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(4.dp)
-                                                .size(28.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xBB000000))
-                                                .clickable { viewModel.removeBookmark(bm.animeId) },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = AhIcons.DeleteOutline,
-                                                contentDescription = "Remove Bookmark",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
+                                                .fillMaxWidth()
+                                                .height(36.dp)
+                                        )
                                     }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = bm.title,
-                                        color = palette.textPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(36.dp)
-                                    )
                                 }
-                            }
-                            repeat(gridColumns - row.items.size) {
-                                Spacer(modifier = Modifier.weight(1f))
+                                repeat(gridColumns - row.items.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
                     }

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListPrefetchStrategy
@@ -69,6 +68,7 @@ import me.animeheaven.android.ui.components.AhShape20
 import me.animeheaven.android.ui.components.AhShape8
 import me.animeheaven.android.ui.components.SimilarShowCard
 import me.animeheaven.android.ui.components.toGridRows
+import me.animeheaven.android.ui.components.topSystemSafePadding
 import me.animeheaven.android.ui.theme.LocalAhPalette
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -100,7 +100,7 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(palette.surface)
-                .statusBarsPadding()
+                .topSystemSafePadding()
         ) {
             Row(
                 modifier = Modifier
@@ -132,7 +132,7 @@ fun SearchScreen(
                         .height(44.dp)
                         .clip(AhShape10)
                         .background(if (palette.isLight) Color.White else palette.surfaceElevated)
-                        .border(1.dp, if (palette.isLight) palette.borderSubtle else Color(0x33FFFFFF), AhShape10)
+                        .border(1.dp, palette.chipBorder, AhShape10)
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -185,7 +185,7 @@ fun SearchScreen(
                             modifier = Modifier
                                 .size(24.dp)
                                 .clip(CircleShape)
-                                .background(palette.surfaceElevated)
+                                .background(if (palette.isLight) palette.borderSubtle else Color(0x2EFFFFFF))
                                 .clickable {
                                     viewModel.clearQuery()
                                     runCatching { focusRequester.requestFocus() }
@@ -196,7 +196,7 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Clear",
-                                tint = palette.textSecondary,
+                                tint = palette.textPrimary,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -242,6 +242,7 @@ fun SearchScreen(
                                 text = recent,
                                 color = palette.textSecondary,
                                 fontSize = 12.sp,
+                                lineHeight = 16.sp,
                                 maxLines = 1
                             )
                         }
@@ -395,6 +396,7 @@ fun SearchScreen(
                                     text = item.title,
                                     color = palette.textPrimary,
                                     fontSize = 15.sp,
+                                    lineHeight = 20.sp,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,

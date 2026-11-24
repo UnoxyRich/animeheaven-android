@@ -30,15 +30,18 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -138,6 +141,8 @@ private data class GestureIndicator(
 private val PLAYBACK_SPEEDS = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 private val HUD_TOP_SCRIM = Brush.verticalGradient(listOf(Color(0xE6000000), Color.Transparent))
 private val HUD_BOTTOM_SCRIM = Brush.verticalGradient(listOf(Color.Transparent, Color(0xEC000000)))
+private val HUD_TEXT_SECONDARY = Color(0xFFD2D2D2)
+private val HUD_SECONDARY_BUTTON_BG = Color(0xFF262626)
 private val SEEK_BADGE_SHAPE = RoundedCornerShape(8.dp)
 private val SEEK_TRACK_BG = Color(0x55FFFFFF)
 private val SEEK_BUFFER_COLOR = Color(0x77BDBDBD)
@@ -828,7 +833,9 @@ fun PlayerScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                )
                 .padding(bottom = 28.dp)
         ) {
             Row(
@@ -870,7 +877,9 @@ fun PlayerScreen(
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
                         .background(HUD_TOP_SCRIM)
-                        .statusBarsPadding()
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+                        )
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1053,14 +1062,16 @@ fun PlayerScreen(
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
                         .background(HUD_BOTTOM_SCRIM)
-                        .navigationBarsPadding()
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                        )
                         .padding(horizontal = 18.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     PlayerInteractiveSeekSection(
                         progressState = progressState,
                         accentColor = palette.crimson,
-                        secondaryTextColor = palette.textSecondary,
+                        secondaryTextColor = HUD_TEXT_SECONDARY,
                         onScrubStart = { hudInteractionNonce++ },
                         onScrubCommit = { targetMs ->
                             exoPlayer.seekTo(targetMs)
@@ -1122,7 +1133,9 @@ fun PlayerScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                )
                 .padding(horizontal = 20.dp, vertical = 22.dp)
         ) {
             if (segment != null) {
@@ -1149,7 +1162,9 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                    )
                     .padding(horizontal = 20.dp, vertical = 22.dp)
                     .clip(AhShape10)
                     .background(Color(0xEE121212))
@@ -1192,7 +1207,7 @@ fun PlayerScreen(
                         Box(
                             modifier = Modifier
                                 .clip(AhShape8)
-                                .background(palette.surfaceElevated)
+                                .background(HUD_SECONDARY_BUTTON_BG)
                                 .clickable { showUpNextOverlay = false }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
@@ -1418,8 +1433,9 @@ private fun SkipPromptOverlay(
                 )
                 Text(
                     text = "Tap to jump → $destinationText",
-                    color = palette.textSecondary,
+                    color = HUD_TEXT_SECONDARY,
                     fontSize = 11.sp,
+                    lineHeight = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
