@@ -41,7 +41,7 @@ jobs:
             app/build/compose_compiler/
 
   android-phone-ui-tests:
-    name: Real Android Phone Emulator UI Tests
+    name: Real Android Phone Emulator UI Tests & Screenshots
     runs-on: ubuntu-latest
     needs: unit-tests-and-release
     steps:
@@ -68,7 +68,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Boot Pixel 6 Emulator (API 34) & run UI instrumentation tests
+      - name: Boot Pixel 6 Emulator (API 34) & capture walkthrough screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -81,15 +81,20 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             ./gradlew connectedDebugAndroidTest --stacktrace
-            adb shell am start -n me.animeheaven.android/.MainActivity
-            sleep 4
-            adb exec-out screencap -p > phone-ui-screenshot.png || true
+            mkdir -p screenshots
+            adb pull /sdcard/Android/data/me.animeheaven.android/files/ci-screenshots/. screenshots/ || true
+            ls -lh screenshots/
 
-      - name: Upload UI Test Reports & Screenshot
+      - name: Upload Phone App Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: animeheaven-android-screenshots
+          path: screenshots/*.png
+
+      - name: Upload UI Test Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: animeheaven-android-ui-tests
-          path: |
-            app/build/reports/androidTests/connected/
-            phone-ui-screenshot.png
+          path: app/build/reports/androidTests/connected/
