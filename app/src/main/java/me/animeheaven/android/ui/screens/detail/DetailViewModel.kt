@@ -77,13 +77,20 @@ class DetailViewModel(
         )
     }.onEach { state ->
         val detail = state.detail ?: return@onEach
-        val preloadKey = "${detail.id}:${state.primaryAction?.episodeKey}"
+        val primaryEpKey = state.primaryAction?.episodeKey
+        val primaryProg = primaryEpKey?.let { state.progressMap[it] }
+        val preloadKey = "${detail.id}:$primaryEpKey:${primaryProg?.positionMs ?: 0L}"
         if (preloadKey != lastPreloadedKey) {
             lastPreloadedKey = preloadKey
+            val resumeMs = primaryProg?.let {
+                AnimeHeavenRepository.resolveResumePositionMs(it.positionMs, it.durationMs)
+            } ?: 0L
             preloader?.preloadAnimeDetail(
                 detail = detail,
-                primaryEpisodeKey = state.primaryAction?.episodeKey,
-                primaryEpisodeLabel = state.primaryAction?.episodeLabel
+                primaryEpisodeKey = primaryEpKey,
+                primaryEpisodeLabel = state.primaryAction?.episodeLabel,
+                primaryResumeMs = resumeMs,
+                primaryDurationMs = primaryProg?.durationMs ?: 0L
             )
         }
     }.stateIn(

@@ -15,8 +15,8 @@ This document covers the networking, HTML parsing, multi-tier caching, Wi-Fi/cel
 - [`CachedDns`](../app/src/main/java/me/animeheaven/android/data/network/NetworkOptimizer.kt): 5-minute in-memory DNS TTL cache with stale IP fallback on `UnknownHostException`.
 
 ### Network Policy & Preconnection ([`NetworkOptimizer.kt`](../app/src/main/java/me/animeheaven/android/data/network/NetworkOptimizer.kt))
-- `NetworkPolicy` tracks unmetered Wi-Fi vs. metered cellular connections reactively via `ConnectivityManager.NetworkCallback`, avoiding Binder IPC polling per preload check and automatically gating aggressive `8 MB` next-episode video preloads on metered mobile data.
-- `NetworkPreconnector` runs async head/DNS warming for AnimeHeaven and learned top healthy video CDN hosts from `MirrorHealthTracker`.
+- `NetworkPolicy` tracks unmetered Wi-Fi vs. metered cellular connections reactively via `ConnectivityManager.NetworkCallback` and `isUnmeteredFlow: StateFlow<Boolean>`, strictly enforcing `DATA_SAVER` (`0 B` background video preloading) on metered cellular data and resuming 4-wave preloading automatically when Wi-Fi returns.
+- `NetworkPreconnector` runs async head/DNS warming for AnimeHeaven and learned top-3 healthy video CDN hosts from `MirrorHealthTracker`.
 
 ### HTML Parsing ([`AnimeHeavenParser.kt`](../app/src/main/java/me/animeheaven/android/data/parser/AnimeHeavenParser.kt))
 All CSS selectors are compiled **once** as Jsoup `Evaluator`s (`QueryParser.parse(...)`). Parsers handle:
@@ -34,9 +34,10 @@ All CSS selectors are compiled **once** as Jsoup `Evaluator`s (`QueryParser.pars
 Synchronized access-ordered `LinkedHashMap` caches bound heap usage:
 - `cachedCharts`: max `24`
 - `cachedGrids`: max `24`
-- `cachedDetails`: max `64`
-- `cachedStreams`: max `48`
+- `cachedDetails`: max `128`
+- `cachedStreams`: max `128`
 - `cachedFastSearch`: max `100`
+- In-memory watch-progress maps (`progressByEpisode`, `latestProgressByAnime`) hydrated at startup alongside recent `gate:*` streams (`48`), `detail:*` entries (`24`), and `vmeta:*` MP4 seek indices (`128`) so warm episodes open in 0 ms without DB or network blocking.
 
 Soft TTLs drive Stale-While-Revalidate (SWR) background refreshes:
 - `TTL_HOME_MS` = `5 min`
@@ -87,34 +88,38 @@ Coil memory allocation in `AppContainer`: `18%` of memory class on low-RAM devic
 
 ---
 
-## 4. Predictive Preloading ([`AnimePreloader.kt`](../app/src/main/java/me/animeheaven/android/data/cache/AnimePreloader.kt))
+## 4. 4-Wave Startup & Interactive Preloading ([`AnimePreloader.kt`](../app/src/main/java/me/animeheaven/android/data/cache/AnimePreloader.kt))
 
-- **Band 0 (`band0Gate`, 3 permits)**: Hero images, top Continue Watching episode gate + mirror speed probe + resume-aware `2 MB` video head preload, visible scroll-window artwork, and active episode detail/stream warming.
-- **Band 1 (`band1Gate`, 2 permits)**: Background catalog tabs (`New`, `Popular`, seasonal feed), top Home details, and bookmarks, gated behind a `450 ms` startup grace delay (`BAND1_STARTUP_GRACE_MS`) and `yieldIfUserActive()` (`MutableStateFlow` wait up to `6s` with zero polling).
+Preloading starts immediately on app launch (zero startup delay on unmetered Wi-Fi, strictly disabled on metered cellular) across four waves with `originHtmlGate(2)`, `150 ms` Wave-2 pacing, and automatic HTTP `429`/`503` exponential backoff:
+- **Wave 0 (`0 ms`)**: Top 3 Continue Watching shows (`8 MB` + pre-demuxed `PreloadMediaSource` for #1, `6 MB` for #2–#3) + Hero Banner #1 (`6 MB`), targeting exact resume offsets or opening + post-OP.
+- **Wave 1 (`+350 ms`)**: Continue Watching #4–#15 (`5 MB` each), Hero Banners #2–#5 (`5 MB` each), and Bookmarks #1–#15 (`4.5 MB` each).
+- **Wave 2 (Paced)**: Every show in Home Popular (`12`) and Home Schedule (`24`) warmed with `4 MB` (~15–20s) of start/resume bytes, plus background catalog tabs (`New`, `Popular`, seasonal feed).
+- **Wave 3 (Interactive & Watch Next)**: Detail primary episode (`8 MB` + follow-up `4 MB`), visible catalog scroll warming, and Watch Next (`6 MB` on playback start, escalating to `20 MB` once the active episode has `>= 15s` buffered ahead).
+
+Foreground work calls `beginUserPriorityWork()` / `endUserPriorityWork()` around `foregroundUserWorkCount: MutableStateFlow<Int>`, pausing background waves reactively via `yieldIfUserActive()`.
 
 ---
 
-## 5. Multi-Mirror Video Streaming & Booster
+## 5. Zero-Buffering Video Engine, MP4 Seek Index & Gapless Watch Next
 
-### Shared Episode Cache Keys ([`VideoCacheManager.kt`](../app/src/main/java/me/animeheaven/android/data/cache/VideoCacheManager.kt))
-- `buildEpisodeCacheKey(episodeKey, contentLength, fallbackUrl)` computes `"ep:$episodeKey:$contentLength"` once a probe confirms `contentLength >= MIN_VALID_VIDEO_BYTES`.
-- Switching verified mirrors reuses `SimpleCache` chunks. The budget is capped at a quarter of usable disk space (`512 MB` target below `4 GB` free, `1 GB` otherwise; `2 MB` fragments and `512 KB` chunks).
-- `videoCacheManager.cancelPreloadsExcept(episodeKey)` preserves in-flight preloads for the episode currently opening.
+### Exact MP4 Keyframe Indexing ([`Mp4MoovSeekParser.kt`](../app/src/main/java/me/animeheaven/android/data/cache/Mp4MoovSeekParser.kt))
+- Pure-Kotlin ISO-BMFF parser inspects `ftyp`/`moov`/`mdat` boxes to locate faststart or multi-chunk tail `moov` atoms and extracts `EpisodeVideoIndex` keyframe tables (`mvhd`/`mdhd`/`hdlr`/`stts`/`stss`/`stsc`/`stsz`/`stco`/`co64`), persisted in Room `web_cache` (`"vmeta:<episodeKey>"`, zero schema migration).
+- Enables exact VBR keyframe resume & post-OP byte targeting plus 0 ms cold-start cache key lookup.
 
-### First-Valid-Mirror Probe & `MirrorHealthTracker`
-- `probeMirrorsForPlayback(urls, maxWaitMs = 900L)` races Range `bytes=0-0` probes and starts playback as soon as the **first** valid full-length (`>= 1 MB`) mirror responds, while remaining mirrors continue probing asynchronously for `StreamingChunkBooster`.
-- `MirrorHealthTracker` records RTT, failure cooldowns, EWMA `avgBytesPerSec`, and `< 1 MB` stub-clip penalties, persisting host rankings in `SharedPreferences`.
+### Tiered 2 GB Cache & Eviction Protection ([`PinnedPriorityCacheEvictor.kt`](../app/src/main/java/me/animeheaven/android/data/cache/PinnedPriorityCacheEvictor.kt), [`VideoCacheManager.kt`](../app/src/main/java/me/animeheaven/android/data/cache/VideoCacheManager.kt))
+- Shared episode cache keys (`"ep:$episodeKey:$contentLength"`) reuse cached chunks across verified mirrors at **0 ms**.
+- Disk budget scales up to `2 GB` (`512 MB` `< 4 GB` free, `1 GB` `< 12 GB` free, `2 GB` `>= 12 GB` free, capped at `<= 25%` of usable storage).
+- `PinnedPriorityCacheEvictor` protects **Tier A** hot-start, Continue Watching resume, `moov`, and Watch Next windows (up to `40%` budget) and evicts **Tier B** watched trailing chunks first (`> 3 min` behind playhead auto-demoted).
 
-### `StreamingChunkBooster` ([`StreamingChunkBooster.kt`](../app/src/main/java/me/animeheaven/android/data/cache/StreamingChunkBooster.kt))
-- Fetches `512 KB` byte spans in parallel across throughput-ranked healthy mirrors into pooled `ByteArray` buffers without holding `SimpleCache` locks during network I/O.
-- `Channel.CONFLATED` wakes the booster immediately on seeks (`onPlayheadUpdate`) with `+1 chunk` post-seek anchor tightening.
-- Automatically queues MP4 tail chunks when chunk `0` lacks a `moov` box (`containsMoovBox`) for non-faststart files.
-- `PlayerViewModel` escalates next-episode preloading once per episode (`PreloadMode.AGGRESSIVE` + unmetered Wi-Fi via `NetworkPolicy`).
+### First-Valid-Mirror Probe & `StreamingChunkBooster` ([`StreamingChunkBooster.kt`](../app/src/main/java/me/animeheaven/android/data/cache/StreamingChunkBooster.kt))
+- Warm disk hits bypass blocking mirror probes completely (`PlayerViewModel.buildWarmStateIfAvailable`) and start on Frame 0 while `probeMirrorsInBackground()` refreshes mirror stats asynchronously.
+- Cold starts race `bytes=0-0` probes (`maxWaitMs = 900L`) and unblock on the first valid full-length (`>= 1 MB`) mirror.
+- `StreamingChunkBooster` maintains a **48 MB** sliding ahead window (`24 MB` low-RAM) from the exact playhead frontier (`alignChunkStart(estByte)`), `SINGLE_HOST_WORKERS = 3`, instant `Channel.CONFLATED` seek wakeups, and post-OP priority.
 
-### ExoPlayer Configuration
-- `buildFastLoadControl()`: `250 ms` start playback buffer, `750 ms` after-rebuffer, RAM-scaled (`15s/35s/24 MB` low-RAM vs `25s/55s/48 MB` standard).
-- `leanExtractorsFactory`: `Mp4Extractor`, `FragmentedMp4Extractor`, `MatroskaExtractor`.
-- `PlayerScreen`: Async MediaCodec queueing (`forceEnableMediaCodecAsynchronousQueueing()`), decoder fallback, `AudioAttributes` (`USAGE_MEDIA` / `CONTENT_TYPE_MOVIE`), `setHandleAudioBecomingNoisy(true)`, and direct initial seek via `setMediaItem(mediaItem, resumePositionMs)`.
+### `PlayerWarmupPool` & Gapless ExoPlayer Playlist ([`PlayerWarmupPool.kt`](../app/src/main/java/me/animeheaven/android/data/cache/PlayerWarmupPool.kt))
+- Shares a playback `HandlerThread` (`playbackLooper`) and uses Media3 `PreloadMediaSource.Factory` to pre-demux 6s of RAM samples (max 2 entries, zero extra `MediaCodec` decoders).
+- `PlayerScreen` binds ExoPlayer to `warmupPool.playbackLooper`, enables `pauseAtEndOfMediaItems = true` + `ExoPlayer.PreloadConfiguration(15_000_000L)`, appends the pre-warmed Watch Next item into the live playlist, and performs **0 ms instant switches** via `seekToNextMediaItem()`.
+- `buildFastLoadControl()`: `200 ms` start buffer, `500 ms` rebuffer threshold, `20s–30s` low-RAM / `40s–60s` standard buffers, plus a `220 ms` anti-flicker spinner debounce when `isDiskCacheWarm`.
 
 ---
 

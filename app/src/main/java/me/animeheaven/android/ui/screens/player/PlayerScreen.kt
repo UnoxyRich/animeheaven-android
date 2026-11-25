@@ -225,13 +225,31 @@ fun PlayerScreen(
             .build()
 
         ExoPlayer.Builder(context, renderersFactory)
+            .setPlaybackLooper(videoCacheManager.warmupPool.playbackLooper)
             .setLoadControl(videoCacheManager.buildFastLoadControl())
             .setMediaSourceFactory(videoCacheManager.buildProgressiveMediaSourceFactory())
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
+            .apply {
+                pauseAtEndOfMediaItems = true
+                setPreloadConfiguration(ExoPlayer.PreloadConfiguration(15_000_000L))
+            }
     }
     var resumeOnStart by remember(exoPlayer) { mutableStateOf(false) }
+
+    var showBufferingSpinner by remember { mutableStateOf(state.isLoading && !state.isDiskCacheWarm) }
+    LaunchedEffect(state.isLoading, isBuffering, state.errorMessage, state.isDiskCacheWarm) {
+        val rawBusy = state.errorMessage == null && (state.isLoading || isBuffering)
+        if (!rawBusy) {
+            showBufferingSpinner = false
+        } else if (state.isDiskCacheWarm && !state.isLoading) {
+            delay(220L)
+            showBufferingSpinner = true
+        } else {
+            showBufferingSpinner = true
+        }
+    }
 
     // Register PiP eligibility when playing and clean up on exit
     DisposableEffect(exoPlayer) {
@@ -303,10 +321,68 @@ fun PlayerScreen(
             exoPlayer.duration.coerceAtLeast(progressState.durationMs))
     }
 
+    fun handleEpisodeEnded() {
+        viewModel.setPlaybackBufferingActive(false)
+        val finalDur = exoPlayer.duration.coerceAtLeast(progressState.durationMs)
+        viewModel.persistProgress(
+            positionMs = finalDur,
+            durationMs = finalDur,
+            forceWatched = true
+        )
+        val nextKey = latestState.stream?.nextEpisodeKey
+        if (latestSettings.autoPlayNext && !nextKey.isNullOrBlank() && !latestIsInPip) {
+            upNextSecondsLeft = 5
+            showUpNextOverlay = true
+            hudVisible = false
+        } else {
+            hudVisible = true
+        }
+    }
+
+    fun switchToEpisodeInstant(nextKey: String) {
+        showUpNextOverlay = false
+        activeSkipSegment = null
+        val curIndex = exoPlayer.currentMediaItemIndex
+        val nextIndex = curIndex + 1
+        val hasPreparedInPlaylist = nextIndex < exoPlayer.mediaItemCount &&
+            exoPlayer.getMediaItemAt(nextIndex).mediaId == nextKey
+        if (hasPreparedInPlaylist) {
+            val promoted = viewModel.promotePreparedNextEpisode()
+            if (promoted != null) {
+                exoPlayer.seekTo(nextIndex, 0L)
+                if (curIndex >= 0 && curIndex < nextIndex) {
+                    exoPlayer.removeMediaItem(curIndex)
+                }
+                exoPlayer.setPlaybackSpeed(playbackSpeed)
+                exoPlayer.playWhenReady = true
+                exoPlayer.play()
+                progressState.positionMs = 0L
+                val dur = exoPlayer.duration.coerceAtLeast(promoted.durationMs)
+                progressState.durationMs = dur
+                progressState.bufferedMs = exoPlayer.bufferedPosition.coerceAtLeast(0L)
+                isBuffering = exoPlayer.playbackState == Player.STATE_BUFFERING
+                promoted.primaryUrl?.let { promotedUrl ->
+                    viewModel.startStreamingBoost(
+                        activeUrl = promotedUrl,
+                        activeCacheKey = promoted.activeCacheKey,
+                        initialPositionMs = 0L,
+                        initialDurationMs = dur
+                    )
+                }
+                viewModel.onPlaybackStarted()
+                return
+            }
+        }
+        viewModel.loadEpisode(nextKey)
+    }
+
     DisposableEffect(exoPlayer) {
         val playerListener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 wantsPlayback = playWhenReady
+                if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                    handleEpisodeEnded()
+                }
             }
 
             override fun onIsPlayingChanged(playing: Boolean) {
@@ -330,23 +406,7 @@ fun PlayerScreen(
                         viewModel.onPlaybackStarted()
                     }
                     Player.STATE_IDLE -> viewModel.setPlaybackBufferingActive(false)
-                    Player.STATE_ENDED -> {
-                        viewModel.setPlaybackBufferingActive(false)
-                        val finalDur = exoPlayer.duration.coerceAtLeast(progressState.durationMs)
-                        viewModel.persistProgress(
-                            positionMs = finalDur,
-                            durationMs = finalDur,
-                            forceWatched = true
-                        )
-                        val nextKey = latestState.stream?.nextEpisodeKey
-                        if (latestSettings.autoPlayNext && !nextKey.isNullOrBlank() && !latestIsInPip) {
-                            upNextSecondsLeft = 5
-                            showUpNextOverlay = true
-                            hudVisible = false
-                        } else {
-                            hudVisible = true
-                        }
-                    }
+                    Player.STATE_ENDED -> handleEpisodeEnded()
                 }
             }
 
@@ -400,7 +460,7 @@ fun PlayerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(lifecycleObserver) }
     }
 
-    // Load active mirror URL into ExoPlayer with shared episode cache key & direct resume
+    // Load active mirror URL into ExoPlayer with shared episode cache key, PreloadMediaSource handoff & direct resume
     val activeUrl = state.mirrorState.currentUrl
     val activeCacheKey = state.activeCacheKey ?: activeUrl
     val episodeKey = state.stream?.episodeKey
@@ -409,21 +469,36 @@ fun PlayerScreen(
             exoPlayer.pause()
             exoPlayer.clearMediaItems()
         } else {
-            videoCacheManager.cancelPreloadsExcept(episodeKey ?: activeUrl)
+            videoCacheManager.cancelPreloadsExcept(setOfNotNull(episodeKey, state.stream?.nextEpisodeKey))
+            val currentItem = exoPlayer.currentMediaItem
+            if (currentItem?.mediaId == episodeKey &&
+                currentItem.localConfiguration?.uri?.toString() == activeUrl
+            ) {
+                return@LaunchedEffect
+            }
             showUpNextOverlay = false
             activeSkipSegment = null
             isBuffering = true
             val resumeMs = state.initialResumePositionMs.coerceAtLeast(0L)
             progressState.positionMs = resumeMs
-            progressState.durationMs = 0L
+            progressState.durationMs = state.initialDurationMs
             progressState.bufferedMs = resumeMs
 
-            val mediaItem = MediaItem.Builder()
-                .setUri(activeUrl)
-                .setMediaId(episodeKey)
-                .setCustomCacheKey(activeCacheKey)
-                .build()
-            exoPlayer.setMediaItem(mediaItem, resumeMs)
+            val preloadedSource = videoCacheManager.warmupPool.takePreparedSource(
+                episodeKey = episodeKey,
+                cacheKey = activeCacheKey,
+                resumePositionMs = resumeMs
+            )
+            if (preloadedSource != null) {
+                exoPlayer.setMediaSource(preloadedSource, resumeMs)
+            } else {
+                val mediaItem = MediaItem.Builder()
+                    .setUri(activeUrl)
+                    .setMediaId(episodeKey)
+                    .setCustomCacheKey(activeCacheKey)
+                    .build()
+                exoPlayer.setMediaItem(mediaItem, resumeMs)
+            }
             exoPlayer.prepare()
             exoPlayer.setPlaybackSpeed(playbackSpeed)
             val started = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
@@ -433,11 +508,33 @@ fun PlayerScreen(
                 activeUrl = activeUrl,
                 activeCacheKey = activeCacheKey,
                 initialPositionMs = resumeMs,
-                initialDurationMs = 0L
+                initialDurationMs = state.initialDurationMs
             )
             hudVisible = true
             hudInteractionNonce++
         }
+    }
+
+    val preparedNext = state.preparedNextEpisode
+    LaunchedEffect(exoPlayer, episodeKey, preparedNext?.episodeKey, preparedNext?.primaryUrl) {
+        val curKey = episodeKey ?: return@LaunchedEffect
+        val nextUrl = preparedNext?.primaryUrl ?: return@LaunchedEffect
+        if (exoPlayer.currentMediaItem?.mediaId != curKey) return@LaunchedEffect
+        val nextIndex = exoPlayer.currentMediaItemIndex + 1
+        if (nextIndex < exoPlayer.mediaItemCount &&
+            exoPlayer.getMediaItemAt(nextIndex).mediaId == preparedNext.episodeKey
+        ) {
+            return@LaunchedEffect
+        }
+        val nextMediaItem = MediaItem.Builder()
+            .setUri(nextUrl)
+            .setMediaId(preparedNext.episodeKey)
+            .setCustomCacheKey(preparedNext.activeCacheKey)
+            .build()
+        if (nextIndex < exoPlayer.mediaItemCount) {
+            exoPlayer.removeMediaItems(nextIndex, exoPlayer.mediaItemCount)
+        }
+        exoPlayer.addMediaItem(nextIndex, nextMediaItem)
     }
 
     // 500ms playback polling loop (0 root recompositions when HUD is hidden)
@@ -457,7 +554,7 @@ fun PlayerScreen(
 
             viewModel.updateBoosterProgress(pos, resolvedDur, buf)
             val playingNow = exoPlayer.isPlaying
-            if (playingNow && (buf - pos) >= 18_000L) {
+            if (playingNow && (buf - pos) >= 15_000L) {
                 viewModel.onPlaybackHealthyBufferAhead()
             }
             if (latestIsBuffering && exoPlayer.playWhenReady && !latestShowUpNext && (buf - pos) < 1_500L) {
@@ -541,7 +638,7 @@ fun PlayerScreen(
                 }
                 if (showUpNextOverlay && upNextSecondsLeft <= 0) {
                     showUpNextOverlay = false
-                    latestState.stream?.nextEpisodeKey?.let { viewModel.loadEpisode(it) }
+                    latestState.stream?.nextEpisodeKey?.let { switchToEpisodeInstant(it) }
                 }
             }
         }
@@ -588,7 +685,7 @@ fun PlayerScreen(
                 )
                 seekFeedback = action.feedbackLabel
                 seekFeedbackNonce++
-                viewModel.loadEpisode(nextKey)
+                switchToEpisodeInstant(nextKey)
                 return
             }
         }
@@ -750,8 +847,8 @@ fun PlayerScreen(
             )
         }
 
-        // Loading / Buffering Spinner
-        if (!isInPipMode && (state.isLoading || (isBuffering && state.errorMessage == null))) {
+        // Loading / Buffering Spinner (220ms anti-flicker debounce when disk cache is warm)
+        if (!isInPipMode && showBufferingSpinner) {
             Column(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -1049,7 +1146,7 @@ fun PlayerScreen(
                                     exoPlayer.currentPosition.coerceAtLeast(0L),
                                     exoPlayer.duration.coerceAtLeast(progressState.durationMs)
                                 )
-                                viewModel.loadEpisode(key)
+                                switchToEpisodeInstant(key)
                             }
                         }
                     )
@@ -1193,7 +1290,7 @@ fun PlayerScreen(
                                 .background(palette.crimson)
                                 .clickable {
                                     showUpNextOverlay = false
-                                    state.stream?.nextEpisodeKey?.let { viewModel.loadEpisode(it) }
+                                    state.stream?.nextEpisodeKey?.let { switchToEpisodeInstant(it) }
                                 }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {

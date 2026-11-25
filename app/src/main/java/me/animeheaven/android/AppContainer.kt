@@ -75,7 +75,9 @@ class AppContainer(context: Context) {
     val skipTimesClient: SkipTimesClient by skipTimesClientLazy
 
     private val videoCacheManagerLazy = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        VideoCacheManager(appContext, okHttpClient)
+        VideoCacheManager(appContext, okHttpClient).apply {
+            setVideoIndexPersistence { index -> repository.saveEpisodeVideoIndex(index) }
+        }
     }
     val videoCacheManager: VideoCacheManager by videoCacheManagerLazy
 
@@ -129,9 +131,30 @@ class AppContainer(context: Context) {
     fun warmUpOnStartup() {
         startupJob = appScope.launch {
             launch { artworkResolver.hydrateRecentFromDisk() }
+            val videoWarmup = launch {
+                runCatching {
+                    val vcm = videoCacheManager
+                    val indices = repository.loadRecentVideoIndices(128)
+                    vcm.hydrateVideoIndices(indices)
+                    val topHosts = vcm.mirrorHealthTracker.topHealthyHosts(limit = 3)
+                    if (topHosts.isNotEmpty() && networkPolicy.shouldPreloadVideo()) {
+                        NetworkPreconnector.preconnectCdnHostsAsync(vcm.videoHttpClient, topHosts)
+                    }
+                }
+            }
             if (networkPolicy.shouldPreloadHomeDetails()) {
                 NetworkPreconnector.preconnectAsync(okHttpClient)
                 NetworkPreconnector.preconnectCdnHostsAsync(okHttpClient, listOf("graphql.anilist.co", "api.ani.zip"))
+            }
+
+            launch {
+                var wasUnmetered = networkPolicy.isUnmeteredFlow.value
+                networkPolicy.isUnmeteredFlow.collect { unmetered ->
+                    if (unmetered && !wasUnmetered) {
+                        preloader.onUnmeteredNetworkAvailable()
+                    }
+                    wasUnmetered = unmetered
+                }
             }
 
             val fastFeed = runCatching { repository.hydrateHomeFastSync() }.getOrNull()
@@ -148,14 +171,13 @@ class AppContainer(context: Context) {
                 )
             }
 
-            runCatching { repository.warmUpFromDisk() }.onSuccess { (feed, continueItems) ->
-                if (feed != null) {
-                    preloader.preloadHomeEcosystem(feed, continueItems)
+            videoWarmup.join()
+            runCatching { repository.warmUpFromDisk() }.onSuccess { (diskFeed, continueItems) ->
+                val activeFeed = diskFeed ?: runCatching { repository.getHomeFeed(forceRefresh = false) }.getOrNull()
+                if (activeFeed != null) {
+                    preloader.preloadHomeEcosystem(activeFeed, continueItems)
                 }
             }
-
-            delay(800L)
-            runCatching { videoCacheManager }
 
             delay(9_000L)
             runCatching { repository.pruneExpiredCache() }
