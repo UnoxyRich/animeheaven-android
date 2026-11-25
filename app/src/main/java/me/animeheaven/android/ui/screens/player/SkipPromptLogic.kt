@@ -41,38 +41,28 @@ object SkipPromptLogic {
         allowFallbackOp: Boolean
     ): List<SkipSegment> {
         val segments = mutableListOf<SkipSegment>()
-
-        val exactOp = exactSkipTimes.op
-        if (exactOp != null) {
-            segments.add(exactOp)
-        } else if (allowFallbackOp && durationMs >= MIN_FALLBACK_EPISODE_DURATION_MS) {
-            segments.add(
-                SkipSegment(
-                    type = SkipSegmentType.OP,
-                    startMs = FALLBACK_OP_START_MS,
-                    endMs = FALLBACK_OP_START_MS + skipOpFallbackSeconds * 1000L,
-                    isExact = false
-                )
-            )
-        }
-
-        val exactEd = exactSkipTimes.ed
-        if (exactEd != null) {
-            segments.add(exactEd)
-        } else if (durationMs >= MIN_FALLBACK_EPISODE_DURATION_MS) {
-            val startMs = (durationMs - FALLBACK_ED_REMAINING_START_MS).coerceAtLeast(durationMs / 2L)
-            val endMs = (durationMs - 2_000L).coerceAtLeast(startMs + 10_000L)
-            segments.add(
-                SkipSegment(
-                    type = SkipSegmentType.ED,
-                    startMs = startMs,
-                    endMs = endMs,
-                    isExact = false
-                )
-            )
-        }
-
+        exactSkipTimes.op?.let(segments::add)
+        exactSkipTimes.ed?.let(segments::add)
         return segments
+    }
+
+    fun findActiveHudSegment(
+        positionMs: Long,
+        exactSkipTimes: EpisodeSkipTimes,
+        skipPromptEnabled: Boolean
+    ): SkipSegment? {
+        if (!skipPromptEnabled) return null
+        exactSkipTimes.op?.let { op ->
+            if (positionMs in op.startMs until (op.endMs - 1_000L).coerceAtLeast(op.startMs)) {
+                return op
+            }
+        }
+        exactSkipTimes.ed?.let { ed ->
+            if (positionMs in ed.startMs until (ed.endMs - 1_000L).coerceAtLeast(ed.startMs)) {
+                return ed
+            }
+        }
+        return null
     }
 
     fun findTriggerableSegment(

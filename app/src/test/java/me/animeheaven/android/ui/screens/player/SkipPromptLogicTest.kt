@@ -111,7 +111,7 @@ class SkipPromptLogicTest {
     }
 
     @Test
-    fun `fallback OP and ED apply only to long episodes and respect mid-episode resume`() {
+    fun `does not fabricate fallback OP or ED when AniSkip returns empty`() {
         val duration24Min = 24 * 60_000L
         val segments = SkipPromptLogic.resolveCandidateSegments(
             exactSkipTimes = EpisodeSkipTimes(),
@@ -119,28 +119,15 @@ class SkipPromptLogicTest {
             skipOpFallbackSeconds = 85,
             allowFallbackOp = true
         )
-        assertEquals(2, segments.size)
-        assertEquals(SkipSegmentType.OP, SkipPromptLogic.findTriggerableSegment(5_000L, duration24Min, segments, emptySet())?.type)
-        assertEquals(SkipSegmentType.ED, SkipPromptLogic.findTriggerableSegment(duration24Min - 80_000L, duration24Min, segments, emptySet())?.type)
+        assertTrue(segments.isEmpty())
+        assertNull(SkipPromptLogic.findTriggerableSegment(5_000L, duration24Min, segments, emptySet()))
+        assertNull(SkipPromptLogic.findActiveHudSegment(5_000L, EpisodeSkipTimes(), skipPromptEnabled = true))
 
-        // Resumed mid-episode: no fallback OP
-        val resumedSegments = SkipPromptLogic.resolveCandidateSegments(
-            exactSkipTimes = EpisodeSkipTimes(),
-            durationMs = duration24Min,
-            skipOpFallbackSeconds = 85,
-            allowFallbackOp = false
-        )
-        assertEquals(1, resumedSegments.size)
-        assertEquals(SkipSegmentType.ED, resumedSegments[0].type)
-
-        // Short 3-minute episode: no fallback OP or ED
-        val shortSegments = SkipPromptLogic.resolveCandidateSegments(
-            exactSkipTimes = EpisodeSkipTimes(),
-            durationMs = 3 * 60_000L,
-            skipOpFallbackSeconds = 85,
-            allowFallbackOp = true
-        )
-        assertTrue(shortSegments.isEmpty())
+        val fetchedOp = SkipSegment(SkipSegmentType.OP, 80_000L, 170_000L, isExact = true)
+        val fetchedTimes = EpisodeSkipTimes(op = fetchedOp, ed = null)
+        assertNull(SkipPromptLogic.findActiveHudSegment(0L, fetchedTimes, skipPromptEnabled = true))
+        assertEquals(fetchedOp, SkipPromptLogic.findActiveHudSegment(95_000L, fetchedTimes, skipPromptEnabled = true))
+        assertNull(SkipPromptLogic.findActiveHudSegment(175_000L, fetchedTimes, skipPromptEnabled = true))
     }
 
     @Test

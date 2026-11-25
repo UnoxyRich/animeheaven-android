@@ -606,7 +606,6 @@ fun PopularHorizontalStrip(
                             .size(width = 114.dp, height = 171.dp)
                             .clip(AhShape8)
                             .background(palette.surfaceElevated)
-                            .border(1.dp, palette.borderSubtle, AhShape8)
                             .clickable { onAnimeClick(anime.id) }
                     ) {
                         AhCoverImage(
@@ -616,6 +615,11 @@ fun PopularHorizontalStrip(
                             artwork = ArtworkLookupRequest(anime.id, anime.title, anime.japaneseTitle, priority = ArtworkPriority.FEATURED),
                             slot = ArtworkSlot.PORTRAIT_2_3,
                             modifier = Modifier.fillMaxSize()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .border(1.dp, palette.borderSubtle, AhShape8)
                         )
                         if (rank <= 10) {
                             Column(

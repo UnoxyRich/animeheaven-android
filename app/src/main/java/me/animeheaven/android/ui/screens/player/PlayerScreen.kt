@@ -1152,8 +1152,13 @@ fun PlayerScreen(
                     )
                 }
 
-                // Bottom Scrim Bar: Interactive Scrubber + Skip OP / Skip ED Pills
+                // Bottom Scrim Bar: Action Pills (above timeline) + Interactive Scrubber
                 val stream = state.stream
+                val hudSkipSegment = SkipPromptLogic.findActiveHudSegment(
+                    positionMs = progressState.positionMs,
+                    exactSkipTimes = state.skipTimes,
+                    skipPromptEnabled = settings.skipPromptEnabled
+                )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1165,6 +1170,48 @@ fun PlayerScreen(
                         .padding(horizontal = 18.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (hudSkipSegment != null || stream?.nextEpisodeKey != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (hudSkipSegment != null) {
+                                HudPillChip(
+                                    icon = AhIcons.Forward30,
+                                    label = if (hudSkipSegment.type == SkipSegmentType.OP) {
+                                        "Skip Opening"
+                                    } else {
+                                        "Skip Ending"
+                                    },
+                                    onClick = {
+                                        val action = SkipPromptLogic.computeSkipAction(
+                                            segment = hudSkipSegment,
+                                            currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
+                                            durationMs = exoPlayer.duration.coerceAtLeast(progressState.durationMs),
+                                            fallbackSkipSeconds = settings.skipOpSeconds,
+                                            hasNextEpisode = !stream?.nextEpisodeKey.isNullOrBlank()
+                                        )
+                                        executeSkipAction(action)
+                                    }
+                                )
+                            }
+                            stream?.nextEpisodeKey?.let { nextKey ->
+                                HudPillChip(
+                                    icon = AhIcons.SkipNext,
+                                    label = "Next Ep",
+                                    onClick = {
+                                        viewModel.persistProgress(
+                                            exoPlayer.currentPosition.coerceAtLeast(0L),
+                                            exoPlayer.duration.coerceAtLeast(progressState.durationMs)
+                                        )
+                                        switchToEpisodeInstant(nextKey)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     PlayerInteractiveSeekSection(
                         progressState = progressState,
                         accentColor = palette.crimson,
@@ -1176,48 +1223,6 @@ fun PlayerScreen(
                             hudInteractionNonce++
                         }
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HudPillChip(
-                            icon = AhIcons.Forward30,
-                            label = if (state.skipTimes.op != null) {
-                                "Skip OP"
-                            } else {
-                                "Skip OP (+${settings.skipOpSeconds}s)"
-                            },
-                            onClick = {
-                                val action = SkipPromptLogic.computeManualHudSkipOp(
-                                    exactOp = state.skipTimes.op,
-                                    currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
-                                    durationMs = exoPlayer.duration.coerceAtLeast(progressState.durationMs),
-                                    fallbackSkipSeconds = settings.skipOpSeconds
-                                )
-                                executeSkipAction(action)
-                            }
-                        )
-                        HudPillChip(
-                            icon = AhIcons.FastForward,
-                            label = if (state.skipTimes.ed != null || stream?.nextEpisodeKey == null) {
-                                "Skip ED"
-                            } else {
-                                "Skip ED → Next"
-                            },
-                            onClick = {
-                                val action = SkipPromptLogic.computeManualHudSkipEd(
-                                    exactEd = state.skipTimes.ed,
-                                    currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
-                                    durationMs = exoPlayer.duration.coerceAtLeast(progressState.durationMs),
-                                    fallbackSkipSeconds = settings.skipOpSeconds,
-                                    hasNextEpisode = !stream?.nextEpisodeKey.isNullOrBlank()
-                                )
-                                executeSkipAction(action)
-                            }
-                        )
-                    }
                 }
             }
         }
