@@ -31,6 +31,7 @@ import me.animeheaven.android.data.model.PreloadMode
 import me.animeheaven.android.data.network.AnimeArtworkResolver
 import me.animeheaven.android.data.network.AnimeHeavenClient
 import me.animeheaven.android.data.network.CachedDns
+import me.animeheaven.android.data.network.MultilingualSearchResolver
 import me.animeheaven.android.data.network.NetworkPolicy
 import me.animeheaven.android.data.network.NetworkPreconnector
 import me.animeheaven.android.data.network.SkipTimesClient
@@ -57,8 +58,19 @@ class AppContainer(context: Context) {
     val networkPolicy: NetworkPolicy by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         NetworkPolicy(appContext, settingsStore, dns)
     }
+    private val multilingualSearchResolverLazy = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        MultilingualSearchResolver(okHttpClient, database.webCacheDao(), appScope)
+    }
+    val multilingualSearchResolver: MultilingualSearchResolver by multilingualSearchResolverLazy
+
     private val repositoryLazy = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        AnimeHeavenRepository(client, database, appContext.filesDir)
+        AnimeHeavenRepository(
+            client = client,
+            database = database,
+            snapshotDir = appContext.filesDir,
+            multilingualSearchResolver = multilingualSearchResolver,
+            multilingualSearchEnabled = { settingsStore.settings.value.multilingualSearchEnabled }
+        )
     }
     val repository: AnimeHeavenRepository by repositoryLazy
 
@@ -202,6 +214,7 @@ class AppContainer(context: Context) {
         }
         if (aggressive || moderate) {
             if (artworkResolverLazy.isInitialized()) artworkResolver.trimMemory()
+            if (multilingualSearchResolverLazy.isInitialized()) multilingualSearchResolver.trimMemory()
             if (repositoryLazy.isInitialized()) repository.trimMemory(aggressive = aggressive)
             if (skipTimesClientLazy.isInitialized()) {
                 runCatching { skipTimesClient.trimMemory(aggressive = aggressive) }

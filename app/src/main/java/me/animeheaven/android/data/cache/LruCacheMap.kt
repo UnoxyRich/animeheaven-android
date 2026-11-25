@@ -37,6 +37,9 @@ class LruCacheMap<K, V>(private val maxEntries: Int) {
     fun size(): Int = map.size
 
     @Synchronized
+    fun values(): List<V> = map.values.toList()
+
+    @Synchronized
     fun trimToSize(targetSize: Int) {
         val cap = targetSize.coerceAtLeast(0)
         if (map.size <= cap) return

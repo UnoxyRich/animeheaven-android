@@ -38,7 +38,13 @@ import me.animeheaven.android.data.model.ContinueWatchingItem
 import me.animeheaven.android.data.model.EpisodeStream
 import me.animeheaven.android.data.model.FastSearchItem
 import me.animeheaven.android.data.model.HomeFeed
+import me.animeheaven.android.data.model.MultilingualFastSearchResult
+import me.animeheaven.android.data.model.MultilingualFullSearchResult
+import me.animeheaven.android.data.network.AnalyzedQuery
 import me.animeheaven.android.data.network.AnimeHeavenClient
+import me.animeheaven.android.data.network.MultilingualQueryNormalizer
+import me.animeheaven.android.data.network.MultilingualSearchResolver
+import me.animeheaven.android.data.network.QueryScript
 import me.animeheaven.android.data.parser.AnimeHeavenParser
 import me.animeheaven.android.data.runCatchingCancellable
 
@@ -78,7 +84,9 @@ class RequestCoalescer<V>(
 class AnimeHeavenRepository(
     private val client: AnimeHeavenClient,
     private val database: AppDatabase,
-    private val snapshotDir: File? = null
+    private val snapshotDir: File? = null,
+    private val multilingualSearchResolver: MultilingualSearchResolver? = null,
+    private val multilingualSearchEnabled: () -> Boolean = { true }
 ) {
     private val bookmarkDao = database.bookmarkDao()
     private val watchProgressDao = database.watchProgressDao()
@@ -167,6 +175,7 @@ class AnimeHeavenRepository(
     }
 
     fun trimMemory(aggressive: Boolean) {
+        multilingualSearchResolver?.trimMemory()
         if (aggressive) {
             cachedDetails.trimToSize(8)
             cachedStreams.trimToSize(6)
@@ -329,7 +338,58 @@ class AnimeHeavenRepository(
         )
     }
 
-    suspend fun fastSearch(query: String): List<FastSearchItem> {
+    suspend fun fastSearch(query: String): List<FastSearchItem> =
+        fastSearchMultilingual(query).items
+
+    suspend fun fullSearch(query: String): Pair<String, List<AnimeCard>> {
+        val result = fullSearchMultilingual(query)
+        return result.title to result.items
+    }
+
+    suspend fun fastSearchMultilingual(
+        query: String,
+        forcedCandidate: String? = null
+    ): MultilingualFastSearchResult {
+        val (items, matched, candidates) = executeMultilingualSearch(
+            rawQuery = query,
+            forcedCandidate = forcedCandidate,
+            directSearch = { q -> fastSearchDirect(q) },
+            itemId = { it.animeId },
+            localFallback = { needles ->
+                searchLocalCatalogCards(needles).map {
+                    FastSearchItem(animeId = it.id, title = it.title, coverUrl = it.coverUrl)
+                }
+            }
+        )
+        return MultilingualFastSearchResult(
+            items = items,
+            matchedQuery = matched,
+            candidateQueries = candidates
+        )
+    }
+
+    suspend fun fullSearchMultilingual(
+        query: String,
+        forcedCandidate: String? = null
+    ): MultilingualFullSearchResult {
+        val trimmed = query.trim()
+        val (items, matched, candidates) = executeMultilingualSearch(
+            rawQuery = trimmed,
+            forcedCandidate = forcedCandidate,
+            directSearch = { q -> fullSearchDirect(q).second },
+            itemId = { it.id },
+            localFallback = ::searchLocalCatalogCards
+        )
+        val displayTitle = matched ?: trimmed
+        return MultilingualFullSearchResult(
+            title = displayTitle,
+            items = items,
+            matchedQuery = matched,
+            candidateQueries = candidates
+        )
+    }
+
+    private suspend fun fastSearchDirect(query: String): List<FastSearchItem> {
         val trimmed = query.trim()
         val key = "fast:${trimmed.lowercase()}"
         return fetchOrCache(
@@ -345,7 +405,7 @@ class AnimeHeavenRepository(
         )
     }
 
-    suspend fun fullSearch(query: String): Pair<String, List<AnimeCard>> {
+    private suspend fun fullSearchDirect(query: String): Pair<String, List<AnimeCard>> {
         val trimmed = query.trim()
         val encoded = URLEncoder.encode(trimmed, "UTF-8")
         val key = "search:${trimmed.lowercase()}"
@@ -360,6 +420,168 @@ class AnimeHeavenRepository(
             serializer = CacheSnapshotCodec::encodeChart,
             deserializer = CacheSnapshotCodec::decodeChart
         )
+    }
+
+    private suspend fun <T> executeMultilingualSearch(
+        rawQuery: String,
+        forcedCandidate: String?,
+        directSearch: suspend (String) -> List<T>,
+        itemId: (T) -> String,
+        localFallback: (List<String>) -> List<T>
+    ): Triple<List<T>, String?, List<String>> {
+        val trimmed = rawQuery.trim()
+        if (trimmed.isEmpty()) return Triple(emptyList(), null, emptyList())
+
+        forcedCandidate?.trim()?.takeIf { it.isNotEmpty() }?.let { forced ->
+            val direct = directSearch(forced)
+            return Triple(direct, forced, listOf(forced))
+        }
+
+        val analyzed = MultilingualQueryNormalizer.analyze(trimmed)
+        if (!multilingualSearchEnabled()) {
+            val directTarget = analyzed.normalizedLatin.ifBlank { trimmed }
+            val items = runCatchingCancellable { directSearch(directTarget) }.getOrElse { err ->
+                val local = localFallback(listOf(trimmed, directTarget))
+                if (local.isNotEmpty()) return Triple(local, null, emptyList())
+                throw err
+            }
+            if (items.isNotEmpty()) return Triple(items, null, emptyList())
+            val local = localFallback(listOf(trimmed, directTarget))
+            return Triple(local, null, emptyList())
+        }
+
+        // Fast path for Latin / English / exact Romaji
+        if (analyzed.script == QueryScript.LATIN) {
+            val siteQuery = analyzed.normalizedLatin.ifBlank { trimmed }
+            var directError: Throwable? = null
+            val directItems = try {
+                directSearch(siteQuery)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (err: Throwable) {
+                directError = err
+                emptyList()
+            }
+            if (directItems.isNotEmpty()) {
+                return Triple(directItems, null, emptyList())
+            }
+            if (directError != null) {
+                val local = localFallback(listOf(trimmed, siteQuery) + analyzed.romajiVariants)
+                if (local.isNotEmpty()) return Triple(local, null, emptyList())
+            }
+        }
+
+        // Fast path for pure Japanese Kana via deterministic Kana -> Hepburn Romaji
+        val localNeedles = mutableListOf(trimmed, analyzed.normalizedLatin)
+        if (analyzed.script == QueryScript.KANA_ONLY && analyzed.kanaRomajiCandidates.isNotEmpty()) {
+            localNeedles.addAll(analyzed.kanaRomajiCandidates)
+            val primaryRomaji = analyzed.kanaRomajiCandidates.first()
+            val kanaDirect = runCatchingCancellable { directSearch(primaryRomaji) }.getOrDefault(emptyList())
+            if (kanaDirect.isNotEmpty()) {
+                return Triple(kanaDirect, primaryRomaji, analyzed.kanaRomajiCandidates)
+            }
+        }
+
+        val resolved = resolveAllCandidates(analyzed)
+        localNeedles.addAll(resolved)
+
+        if (resolved.isNotEmpty()) {
+            val topQueries = resolved.take(2)
+            val fetchedLists = coroutineScope {
+                topQueries.map { candidate ->
+                    async {
+                        candidate to runCatchingCancellable { directSearch(candidate) }
+                    }
+                }.map { it.await() }
+            }
+
+            val merged = mutableListOf<T>()
+            val seenIds = HashSet<String>()
+            var winningQuery: String? = null
+            var anySucceeded = false
+            var firstFailure: Throwable? = null
+
+            for ((candidate, outcome) in fetchedLists) {
+                outcome.onSuccess { list ->
+                    anySucceeded = true
+                    if (list.isNotEmpty() && winningQuery == null) {
+                        winningQuery = candidate
+                    }
+                    for (item in list) {
+                        if (seenIds.add(itemId(item))) {
+                            merged.add(item)
+                        }
+                    }
+                }.onFailure { err ->
+                    if (firstFailure == null) firstFailure = err
+                }
+            }
+
+            if (merged.isNotEmpty()) {
+                return Triple(merged, winningQuery, resolved)
+            }
+            if (!anySucceeded && firstFailure != null) {
+                val local = localFallback(localNeedles)
+                if (local.isNotEmpty()) return Triple(local, resolved.firstOrNull(), resolved)
+                throw firstFailure!!
+            }
+        }
+
+        val local = localFallback(localNeedles)
+        return Triple(local, resolved.firstOrNull(), resolved)
+    }
+
+    private suspend fun resolveAllCandidates(analyzed: AnalyzedQuery): List<String> {
+        val resolver = multilingualSearchResolver
+        val external = if (resolver != null) {
+            resolver.resolveCandidates(analyzed)
+        } else {
+            emptyList()
+        }
+        val combined = analyzed.kanaRomajiCandidates + external + analyzed.romajiVariants
+        return MultilingualQueryNormalizer.rankAndDedupe(combined, excludeQuery = analyzed.normalizedLatin)
+    }
+
+    private fun searchLocalCatalogCards(rawNeedles: List<String>): List<AnimeCard> {
+        val needles = rawNeedles
+            .map(MultilingualQueryNormalizer::normalizeForMatch)
+            .filter { it.length >= 2 }
+            .distinct()
+        if (needles.isEmpty()) return emptyList()
+
+        val seen = HashSet<String>()
+        val matches = mutableListOf<AnimeCard>()
+
+        fun consider(card: AnimeCard) {
+            if (seen.contains(card.id)) return
+            val en = MultilingualQueryNormalizer.normalizeForMatch(card.title)
+            val jp = MultilingualQueryNormalizer.normalizeForMatch(card.japaneseTitle)
+            if (needles.any { needle -> en.contains(needle) || (jp.isNotEmpty() && jp.contains(needle)) }) {
+                seen.add(card.id)
+                matches.add(card)
+            }
+        }
+
+        cachedHomeFeed?.value?.let { home ->
+            home.scheduleItems.forEach(::consider)
+            home.popularItems.forEach(::consider)
+        }
+        for (entry in cachedCharts.values()) {
+            entry.value.second.forEach(::consider)
+        }
+        for (entry in cachedDetails.values()) {
+            val d = entry.value
+            consider(
+                AnimeCard(
+                    id = d.id,
+                    title = d.title,
+                    japaneseTitle = d.japaneseTitle,
+                    coverUrl = d.posterUrl,
+                    episodeLabel = d.episodesLabel
+                )
+            )
+        }
+        return matches.take(30)
     }
 
     suspend fun getRandomAnimeId(): String = client.fetchRandomAnimeId()
@@ -614,6 +836,7 @@ class AnimeHeavenRepository(
             cachedDetails.clear()
             cachedStreams.clear()
             cachedFastSearch.clear()
+            multilingualSearchResolver?.onCacheCleared()
             withContext(Dispatchers.IO) {
                 runCatching { snapshotDir?.let { File(it, HOME_SNAPSHOT_FILENAME).delete() } }
                 webCacheDao.clearAll()

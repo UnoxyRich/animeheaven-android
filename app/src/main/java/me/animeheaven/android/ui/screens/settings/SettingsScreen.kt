@@ -423,6 +423,20 @@ fun SettingsScreen(
                         }
                     }
 
+                    item(key = "search_section") {
+                        SettingsCard(title = "Search & Discovery") {
+                            SwitchRow(
+                                title = "Smart Multi-Language Search",
+                                subtitle = "Translate Japanese, Chinese, Korean, Romaji variants & other languages automatically",
+                                checked = settings.multilingualSearchEnabled,
+                                onCheckedChange = {
+                                    settingsStore.setMultilingualSearchEnabled(it)
+                                    showStatus(if (it) "Multi-Language Search: On" else "Multi-Language Search: Off")
+                                }
+                            )
+                        }
+                    }
+
                     item(key = "preload_strategy") {
                         SettingsCard(title = "Preload & Mobile Data Strategy") {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

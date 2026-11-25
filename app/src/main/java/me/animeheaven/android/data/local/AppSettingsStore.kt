@@ -20,7 +20,8 @@ data class AppSettings(
     val skipPromptEnabled: Boolean = true,
     val doubleTapSeekSeconds: Int = 10,
     val autoLandscapePlayer: Boolean = true,
-    val preloadMode: PreloadMode = PreloadMode.AGGRESSIVE
+    val preloadMode: PreloadMode = PreloadMode.AGGRESSIVE,
+    val multilingualSearchEnabled: Boolean = true
 )
 
 class AppSettingsStore(context: Context) {
@@ -42,6 +43,7 @@ class AppSettingsStore(context: Context) {
         val doubleTapSeekSeconds = prefs.getInt(KEY_DOUBLE_TAP_SEEK_SECONDS, 10)
         val autoLandscapePlayer = prefs.getBoolean(KEY_AUTO_LANDSCAPE_PLAYER, true)
         val preloadName = prefs.getString(KEY_PRELOAD_MODE, PreloadMode.AGGRESSIVE.name)
+        val multilingualSearchEnabled = prefs.getBoolean(KEY_MULTILINGUAL_SEARCH, true)
 
         val viewMode = runCatching {
             FeedViewMode.valueOf(viewModeName ?: FeedViewMode.LIST.name)
@@ -59,7 +61,8 @@ class AppSettingsStore(context: Context) {
             skipPromptEnabled = skipPromptEnabled,
             doubleTapSeekSeconds = doubleTapSeekSeconds,
             autoLandscapePlayer = autoLandscapePlayer,
-            preloadMode = preloadMode
+            preloadMode = preloadMode,
+            multilingualSearchEnabled = multilingualSearchEnabled
         )
     }
 
@@ -105,6 +108,11 @@ class AppSettingsStore(context: Context) {
         _settings.update { it.copy(preloadMode = mode) }
     }
 
+    fun setMultilingualSearchEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_MULTILINGUAL_SEARCH, enabled).apply()
+        _settings.update { it.copy(multilingualSearchEnabled = enabled) }
+    }
+
     companion object {
         private const val PREFS_NAME = "animeheaven_android_settings"
         private const val KEY_THEME = "theme_css_key"
@@ -115,5 +123,6 @@ class AppSettingsStore(context: Context) {
         private const val KEY_DOUBLE_TAP_SEEK_SECONDS = "double_tap_seek_seconds"
         private const val KEY_AUTO_LANDSCAPE_PLAYER = "auto_landscape_player"
         private const val KEY_PRELOAD_MODE = "preload_mode"
+        private const val KEY_MULTILINGUAL_SEARCH = "multilingual_search_enabled"
     }
 }

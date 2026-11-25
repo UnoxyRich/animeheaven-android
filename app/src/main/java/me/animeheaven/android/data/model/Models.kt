@@ -87,6 +87,21 @@ data class FastSearchItem(
 )
 
 @Immutable
+data class MultilingualFastSearchResult(
+    val items: List<FastSearchItem>,
+    val matchedQuery: String? = null,
+    val candidateQueries: List<String> = emptyList()
+)
+
+@Immutable
+data class MultilingualFullSearchResult(
+    val title: String,
+    val items: List<AnimeCard>,
+    val matchedQuery: String? = null,
+    val candidateQueries: List<String> = emptyList()
+)
+
+@Immutable
 data class EpisodeItem(
     val key: String,
     val numberLabel: String,

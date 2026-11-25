@@ -12,6 +12,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import me.animeheaven.android.data.model.AnimeCard
 import me.animeheaven.android.data.model.FastSearchItem
+import me.animeheaven.android.data.model.MultilingualFastSearchResult
+import me.animeheaven.android.data.model.MultilingualFullSearchResult
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,6 +50,50 @@ class SearchViewModelTest {
 
         override suspend fun recordSearch(query: String) {
             recorded.add(query)
+        }
+
+        override suspend fun fastSearchMultilingual(
+            query: String,
+            forcedCandidate: String?
+        ): MultilingualFastSearchResult {
+            val effective = forcedCandidate ?: query
+            return if (query == "葬送的芙莉莲" && forcedCandidate == null) {
+                fastQueries.add(effective)
+                MultilingualFastSearchResult(
+                    items = listOf(
+                        FastSearchItem("ak2gr", "Sousou no Frieren", "https://animeheaven.me/image.php?z4mfi")
+                    ),
+                    matchedQuery = "Sousou no Frieren",
+                    candidateQueries = listOf("Sousou no Frieren", "Frieren: Beyond Journey's End")
+                )
+            } else {
+                MultilingualFastSearchResult(
+                    items = fastSearch(effective),
+                    matchedQuery = forcedCandidate,
+                    candidateQueries = listOfNotNull(forcedCandidate)
+                )
+            }
+        }
+
+        override suspend fun fullSearchMultilingual(
+            query: String,
+            forcedCandidate: String?
+        ): MultilingualFullSearchResult {
+            val effective = forcedCandidate ?: query
+            return if (query == "葬送的芙莉莲") {
+                fullQueries.add(effective)
+                MultilingualFullSearchResult(
+                    title = effective,
+                    items = listOf(
+                        AnimeCard(id = "ak2gr", title = "Match for $effective", coverUrl = "https://animeheaven.me/image.php?z4mfi")
+                    ),
+                    matchedQuery = forcedCandidate ?: "Sousou no Frieren",
+                    candidateQueries = listOf("Sousou no Frieren", "Frieren: Beyond Journey's End")
+                )
+            } else {
+                val (title, items) = fullSearch(effective)
+                MultilingualFullSearchResult(title = title, items = items, matchedQuery = forcedCandidate)
+            }
         }
     }
 
@@ -105,5 +151,32 @@ class SearchViewModelTest {
         assertEquals(emptyList<String>(), gateway.fastQueries)
         assertEquals(listOf("clover", "dandadan"), gateway.fullQueries)
         assertTrue(vm.uiState.value.isFullSearchMode)
+    }
+
+    @Test
+    fun `multilingual query preserves original query in history and supports candidate switching`() = runTest {
+        val gateway = FakeSearchGateway()
+        val vm = SearchViewModel(gateway = gateway, debounceMillis = 100L)
+
+        vm.updateQuery("葬送的芙莉莲")
+        advanceTimeBy(250L)
+        advanceUntilIdle()
+
+        assertEquals("Sousou no Frieren", vm.uiState.value.matchedQuery)
+        assertEquals(
+            listOf("Sousou no Frieren", "Frieren: Beyond Journey's End"),
+            vm.uiState.value.candidateQueries
+        )
+
+        vm.submitFullSearch()
+        advanceUntilIdle()
+        assertEquals(listOf("葬送的芙莉莲"), gateway.recorded)
+
+        vm.selectCandidateQuery("Frieren: Beyond Journey's End")
+        advanceUntilIdle()
+        assertEquals("葬送的芙莉莲", vm.uiState.value.query)
+        assertEquals("Frieren: Beyond Journey's End", vm.uiState.value.matchedQuery)
+        assertEquals("Match for Frieren: Beyond Journey's End", vm.uiState.value.fullResults.first().title)
+        assertEquals(listOf("葬送的芙莉莲"), gateway.recorded)
     }
 }

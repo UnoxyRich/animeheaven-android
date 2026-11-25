@@ -146,10 +146,11 @@ fun SearchScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         if (state.query.isEmpty()) {
                             Text(
-                                text = "Search anime title...",
+                                text = "Search English, Romaji, 日本語, 中文...",
                                 color = palette.textMuted,
                                 fontSize = 15.sp,
-                                maxLines = 1
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         BasicTextField(
@@ -264,6 +265,65 @@ fun SearchScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
+            if (state.matchedQuery != null || state.candidateQueries.isNotEmpty()) {
+                val chips = buildList {
+                    state.matchedQuery?.let { add(it) }
+                    state.candidateQueries.forEach { if (!contains(it)) add(it) }
+                }
+                LazyRow(
+                    contentPadding = PaddingValues(
+                        start = AhHorizontalPadding,
+                        end = AhHorizontalPadding,
+                        top = 8.dp,
+                        bottom = 2.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    item(key = "matched_label") {
+                        Text(
+                            text = "Matched:",
+                            color = palette.textMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    items(
+                        items = chips,
+                        key = { "cand_$it" },
+                        contentType = { "candidate_chip" }
+                    ) { candidate ->
+                        val active = candidate == state.matchedQuery
+                        Box(
+                            modifier = Modifier
+                                .clip(AhShape20)
+                                .background(
+                                    if (active) palette.primaryActionContainer else palette.surfaceElevated
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (active) palette.crimson else palette.borderSubtle,
+                                    shape = AhShape20
+                                )
+                                .clickable {
+                                    keyboardController?.hide()
+                                    viewModel.selectCandidateQuery(candidate)
+                                }
+                                .padding(horizontal = 11.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = candidate,
+                                color = if (active) palette.onPrimaryActionContainer else palette.textSecondary,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
             if (state.isFullSearchMode) {
                 Row(
                     modifier = Modifier
