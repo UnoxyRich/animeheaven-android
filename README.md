@@ -4,6 +4,13 @@ Native Jetpack Compose + Media3 Android **Phone & Tablet** application for brows
 
 > **Companion Repository**: For the Android TV / Leanback D-pad edition (`me.animeheaven.tv`), see the sibling repository `animeheaven-tv`. Both repositories share the core networking, Room persistence, HTML parsing, predictive preloading, and multi-mirror Media3 booster architecture, while adapting manifests, chrome, search input, and playback controls to their target devices.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots.jpg" alt="AnimeHeaven Android Screenshots — Home, Popular, Detail, and Settings" width="720" />
+</p>
+<p align="center"><sub>Home (Midnight Indigo) · Popular Today (Cinema Dark) · Anime Detail (Classic Light) · Settings &amp; 8 Themes</sub></p>
+
 ---
 
 ## Key Capabilities
